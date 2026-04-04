@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Trash2, Ban } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "../../shared/types";
@@ -26,16 +26,13 @@ export function ChatMessage({
     );
   }
 
-  const initials = message.username.slice(0, 2).toUpperCase();
-
   return (
     <div className="group flex items-start gap-2 px-3 py-1.5 hover:bg-secondary/30 transition-colors">
-      <Avatar className="h-6 w-6 mt-0.5 shrink-0">
-        {message.avatar_url && <AvatarImage src={message.avatar_url} />}
-        <AvatarFallback className="text-[10px] font-medium bg-secondary">
-          {initials}
-        </AvatarFallback>
-      </Avatar>
+      {message.avatar_url && (
+        <Avatar className="h-6 w-6 mt-0.5 shrink-0">
+          <AvatarImage src={message.avatar_url} />
+        </Avatar>
+      )}
       <div className="min-w-0 flex-1">
         <span className="inline">
           <span

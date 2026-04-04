@@ -4,7 +4,7 @@ import type {
   ClientToServerEvents,
 } from "../../shared/types";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "";
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
   SOCKET_URL,

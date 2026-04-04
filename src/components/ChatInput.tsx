@@ -6,9 +6,10 @@ import { SendHorizontal } from "lucide-react";
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled: boolean;
+  onRequestLogin?: () => void;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, onRequestLogin }: ChatInputProps) {
   const [value, setValue] = useState("");
 
   const handleSubmit = (e: FormEvent) => {
@@ -21,6 +22,8 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex gap-1.5 p-2 border-t border-border">
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
+      <div className="flex-1" onClick={() => { if (disabled) onRequestLogin?.(); }}>
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -30,6 +33,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         className="h-8 text-sm bg-secondary/50"
         autoComplete="off"
       />
+      </div>
       <Button
         type="submit"
         size="icon"

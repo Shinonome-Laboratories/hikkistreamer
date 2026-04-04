@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useChat } from "@/hooks/useChat";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -26,11 +26,18 @@ export default function App() {
     banUserAction,
     requestUserList,
     customize,
+    uploadAvatar,
     logout,
   } = useChat();
 
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [userListOpen, setUserListOpen] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+
+  // Close modal automatically once the user is authenticated
+  useEffect(() => {
+    if (user) setLoginModalOpen(false);
+  }, [user]);
 
   const handleOpenUserList = () => {
     requestUserList();
@@ -69,12 +76,13 @@ export default function App() {
           onDelete={deleteMsg}
           onBan={banUserAction}
         />
-        <ChatInput onSend={sendMessage} disabled={!user} />
+        <ChatInput onSend={sendMessage} disabled={!user} onRequestLogin={() => setLoginModalOpen(true)} />
       </div>
 
       {/* Modals */}
       <LoginModal
-        open={!user}
+        open={loginModalOpen && !user}
+        onOpenChange={setLoginModalOpen}
         authError={authError}
         onRegister={registerUser}
         onLogin={loginUser}
@@ -88,6 +96,7 @@ export default function App() {
             onOpenChange={setCustomizeOpen}
             user={user}
             onSave={customize}
+            onUploadAvatar={uploadAvatar}
           />
           <UserListModal
             open={userListOpen}

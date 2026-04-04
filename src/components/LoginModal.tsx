@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 interface LoginModalProps {
   open: boolean;
+  onOpenChange?: (open: boolean) => void;
   authError: string | null;
   onRegister: (username: string, password: string) => void;
   onLogin: (username: string, password: string) => void;
@@ -20,6 +21,7 @@ interface LoginModalProps {
 
 export function LoginModal({
   open,
+  onOpenChange,
   authError,
   onRegister,
   onLogin,
@@ -46,7 +48,7 @@ export function LoginModal({
   };
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-[360px]"
         showCloseButton={false}

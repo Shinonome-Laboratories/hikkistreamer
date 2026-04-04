@@ -165,6 +165,25 @@ export function useChat() {
     []
   );
 
+  const uploadAvatar = useCallback(async (dataUrl: string): Promise<void> => {
+    const token = localStorage.getItem("hikkistream_token");
+    if (!token) throw new Error("Not authenticated");
+    const res = await fetch("/api/avatar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ image: dataUrl }),
+    });
+    if (!res.ok) {
+      const err = await res.json() as { error: string };
+      throw new Error(err.error || "Upload failed");
+    }
+    const { avatar_url } = await res.json() as { avatar_url: string };
+    setUser((prev) => (prev ? { ...prev, avatar_url } : prev));
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem("hikkistream_token");
     setUser(null);
@@ -192,6 +211,7 @@ export function useChat() {
     banUserAction,
     requestUserList,
     customize,
+    uploadAvatar,
     logout,
   };
 }

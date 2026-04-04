@@ -2,6 +2,9 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import {
   register,
   login,
@@ -25,9 +28,65 @@ import type {
   User,
 } from "../shared/types.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const avatarsDir = path.join(__dirname, "..", "data", "avatars");
+fs.mkdirSync(avatarsDir, { recursive: true });
+
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
+app.use("/avatars", express.static(avatarsDir));
+
+app.post("/api/avatar", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const token = auth.slice(7);
+  const user = authenticateToken(token);
+  if (!user) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  if (user.is_guest) {
+    res.status(403).json({ error: "Guests cannot upload avatars" });
+    return;
+  }
+  const { image } = req.body as { image?: string };
+  if (!image || typeof image !== "string") {
+    res.status(400).json({ error: "No image provided" });
+    return;
+  }
+  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.+)$/);
+  if (!match) {
+    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp." });
+    return;
+  }
+  const [, mimeType, base64Data] = match;
+  const buffer = Buffer.from(base64Data, "base64");
+  if (buffer.length > 2 * 1024 * 1024) {
+    res.status(400).json({ error: "Image too large (max 2MB)" });
+    return;
+  }
+  const ext = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
+  const filename = `${user.id}.${ext}`;
+  const filepath = path.join(avatarsDir, filename);
+  // Remove any previous avatar file with a different extension
+  for (const e of ["jpg", "png", "gif", "webp"]) {
+    const p = path.join(avatarsDir, `${user.id}.${e}`);
+    if (p !== filepath && fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  fs.writeFileSync(filepath, buffer);
+  const avatarUrl = `/avatars/${filename}`;
+  updateCustomization(user.id, { avatar_url: avatarUrl });
+  for (const [socketId, socketUser] of socketUsers.entries()) {
+    if (socketUser.id === user.id) {
+      socketUsers.set(socketId, { ...socketUser, avatar_url: avatarUrl });
+    }
+  }
+  res.json({ avatar_url: avatarUrl });
+});
 
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
@@ -191,12 +250,6 @@ io.on("connection", (socket) => {
     const updated = updateCustomization(user.id, data);
     if (updated) {
       socketUsers.set(socket.id, updated);
-      // Re-send user info
-      const token =
-        [...socketUsers.entries()].find(([, u]) => u.id === updated.id)?.[0] ===
-        socket.id
-          ? undefined
-          : undefined;
       // Just update local state; client already has the token
       socket.emit("auth:success", {
         user: updated,

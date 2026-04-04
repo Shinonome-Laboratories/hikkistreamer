@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Shield } from "lucide-react";
 import type { User } from "../../shared/types";
@@ -37,12 +37,11 @@ export function UserListModal({
               key={user.id}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30"
             >
-              <Avatar className="h-6 w-6">
-                {user.avatar_url && <AvatarImage src={user.avatar_url} />}
-                <AvatarFallback className="text-[10px]">
-                  {user.username.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              {user.avatar_url && (
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={user.avatar_url} />
+                </Avatar>
+              )}
               <span
                 className="text-sm font-medium flex items-center gap-1"
                 style={{ color: user.username_color }}
