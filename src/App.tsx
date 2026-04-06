@@ -7,6 +7,9 @@ import { ChatInput } from "@/components/ChatInput";
 import { LoginModal } from "@/components/LoginModal";
 import { CustomizeModal } from "@/components/CustomizeModal";
 import { UserListModal } from "@/components/UserListModal";
+import { AdminSettingsModal } from "@/components/AdminSettingsModal";
+import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 
 export default function App() {
   const {
@@ -17,6 +20,8 @@ export default function App() {
     authError,
     hasMoreHistory,
     loadingHistory,
+    streamTitle,
+    customEmojis,
     registerUser,
     loginUser,
     guestLogin,
@@ -33,6 +38,7 @@ export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [userListOpen, setUserListOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
 
   // Close modal automatically once the user is authenticated
   useEffect(() => {
@@ -52,7 +58,20 @@ export default function App() {
           <StreamPlayer />
         </div>
         <div className="flex-1 p-2 lg:p-3">
-          <h1 className="text-sm font-semibold text-foreground">hikkistream</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold text-foreground">{streamTitle}</h1>
+            {user?.is_admin && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                onClick={() => setAdminSettingsOpen(true)}
+                title="Admin settings"
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">Live stream</p>
         </div>
       </div>
@@ -75,8 +94,9 @@ export default function App() {
           onLoadMore={loadMoreHistory}
           onDelete={deleteMsg}
           onBan={banUserAction}
+          customEmojis={customEmojis}
         />
-        <ChatInput onSend={sendMessage} disabled={!user} onRequestLogin={() => setLoginModalOpen(true)} />
+        <ChatInput onSend={sendMessage} disabled={!user} onRequestLogin={() => setLoginModalOpen(true)} customEmojis={customEmojis} />
       </div>
 
       {/* Modals */}
@@ -103,6 +123,14 @@ export default function App() {
             onOpenChange={setUserListOpen}
             users={connectedUsers}
           />
+          {user.is_admin && (
+            <AdminSettingsModal
+              open={adminSettingsOpen}
+              onOpenChange={setAdminSettingsOpen}
+              streamTitle={streamTitle}
+              customEmojis={customEmojis}
+            />
+          )}
         </>
       )}
     </div>

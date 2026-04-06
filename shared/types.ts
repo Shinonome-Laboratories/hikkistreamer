@@ -25,6 +25,16 @@ export interface AuthPayload {
   token: string;
 }
 
+export interface CustomEmoji {
+  name: string;
+  url: string;
+}
+
+export interface BannedUser {
+  id: string;
+  username: string;
+}
+
 export interface ServerToClientEvents {
   "auth:success": (payload: AuthPayload) => void;
   "auth:error": (payload: { message: string }) => void;
@@ -34,6 +44,8 @@ export interface ServerToClientEvents {
   "users:count": (count: number) => void;
   "users:list": (users: User[]) => void;
   "mod:banned": () => void;
+  "stream:title": (title: string) => void;
+  "emojis:list": (emojis: CustomEmoji[]) => void;
 }
 
 export interface ClientToServerEvents {

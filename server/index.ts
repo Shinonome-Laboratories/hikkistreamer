@@ -22,20 +22,45 @@ import {
   deleteMessage,
   deleteUserMessages,
 } from "./chat.js";
+import db from "./db.js";
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
   User,
+  CustomEmoji,
 } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const avatarsDir = path.join(__dirname, "..", "data", "avatars");
+const emojisDir = path.join(__dirname, "..", "data", "emojis");
 fs.mkdirSync(avatarsDir, { recursive: true });
+fs.mkdirSync(emojisDir, { recursive: true });
+
+// --- settings helpers ---
+function getStreamTitle(): string {
+  const row = db.prepare("SELECT value FROM stream_settings WHERE key = 'title'").get() as { value: string } | undefined;
+  return row?.value ?? "hikkistream";
+}
+
+function setStreamTitle(title: string): void {
+  db.prepare("INSERT OR REPLACE INTO stream_settings (key, value) VALUES ('title', ?)").run(title);
+}
+
+function getCustomEmojis(): CustomEmoji[] {
+  return db.prepare("SELECT name, url FROM custom_emojis ORDER BY created_at ASC").all() as CustomEmoji[];
+}
+
+function getBannedUsers(): { id: string; username: string }[] {
+  return db.prepare(
+    "SELECT id, username FROM users WHERE is_banned = 1 AND is_guest = 0 ORDER BY username COLLATE NOCASE ASC"
+  ).all() as { id: string; username: string }[];
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "3mb" }));
 app.use("/avatars", express.static(avatarsDir));
+app.use("/emojis", express.static(emojisDir));
 
 app.post("/api/avatar", (req, res) => {
   const auth = req.headers.authorization;
@@ -88,6 +113,94 @@ app.post("/api/avatar", (req, res) => {
   res.json({ avatar_url: avatarUrl });
 });
 
+// --- public settings endpoint ---
+app.get("/api/settings", (_req, res) => {
+  res.json({ title: getStreamTitle(), emojis: getCustomEmojis() });
+});
+
+// --- admin: set stream title ---
+app.post("/api/admin/title", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { title } = req.body as { title?: string };
+  if (!title || typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "Invalid title" }); return;
+  }
+  const clean = title.trim().slice(0, 100);
+  setStreamTitle(clean);
+  io.emit("stream:title", clean);
+  res.json({ title: clean });
+});
+
+// --- admin: upload custom emoji ---
+app.post("/api/admin/emoji", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { name, image } = req.body as { name?: string; image?: string };
+  if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
+    res.status(400).json({ error: "Invalid emoji name (1-32 alphanumeric, underscore, hyphen)" }); return;
+  }
+  if (!image || typeof image !== "string") {
+    res.status(400).json({ error: "No image provided" }); return;
+  }
+  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.+)$/);
+  if (!match) {
+    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp." }); return;
+  }
+  const [, mimeType, base64Data] = match;
+  const buffer = Buffer.from(base64Data, "base64");
+  if (buffer.length > 1024 * 1024) {
+    res.status(400).json({ error: "Image too large (max 1MB)" }); return;
+  }
+  const ext = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
+  // Remove old file if exists with different extension
+  for (const e of ["jpg", "png", "gif", "webp"]) {
+    const p = path.join(emojisDir, `${name}.${e}`);
+    if (fs.existsSync(p) && e !== ext) fs.unlinkSync(p);
+  }
+  const filename = `${name}.${ext}`;
+  fs.writeFileSync(path.join(emojisDir, filename), buffer);
+  const url = `/emojis/${filename}`;
+  db.prepare("INSERT OR REPLACE INTO custom_emojis (name, url) VALUES (?, ?)").run(name, url);
+  const emojis = getCustomEmojis();
+  io.emit("emojis:list", emojis);
+  res.json({ name, url });
+});
+
+// --- admin: delete custom emoji ---
+app.delete("/api/admin/emoji/:name", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { name } = req.params as { name: string };
+  if (!name || !/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
+    res.status(400).json({ error: "Invalid emoji name" }); return;
+  }
+  db.prepare("DELETE FROM custom_emojis WHERE name = ?").run(name);
+  // Remove file
+  for (const e of ["jpg", "png", "gif", "webp"]) {
+    const p = path.join(emojisDir, `${name}.${e}`);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  const emojis = getCustomEmojis();
+  io.emit("emojis:list", emojis);
+  res.json({ ok: true });
+});
+
+// --- admin: list banned users ---
+app.get("/api/admin/banned", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  res.json(getBannedUsers());
+});
+
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
@@ -116,6 +229,10 @@ function getConnectedUsers(): User[] {
 }
 
 io.on("connection", (socket) => {
+  // Send stream title and emoji list immediately on connection (before auth)
+  socket.emit("stream:title", getStreamTitle());
+  socket.emit("emojis:list", getCustomEmojis());
+
   socket.on("auth:register", (data) => {
     const result = register(data.username, data.password);
     if ("error" in result) {

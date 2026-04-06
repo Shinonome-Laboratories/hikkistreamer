@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { socket } from "@/lib/socket";
-import type { User, ChatMessage, AuthPayload } from "../../shared/types";
+import type { User, ChatMessage, AuthPayload, CustomEmoji } from "../../shared/types";
 
 export function useChat() {
   const [user, setUser] = useState<User | null>(null);
@@ -11,6 +11,8 @@ export function useChat() {
   const [isConnected, setIsConnected] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [streamTitle, setStreamTitle] = useState("hikkistream");
+  const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([]);
   const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -83,6 +85,14 @@ export function useChat() {
       setAuthError("You have been banned.");
     }
 
+    function onStreamTitle(title: string) {
+      setStreamTitle(title);
+    }
+
+    function onEmojisList(emojis: CustomEmoji[]) {
+      setCustomEmojis(emojis);
+    }
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("auth:success", onAuthSuccess);
@@ -93,6 +103,8 @@ export function useChat() {
     socket.on("users:count", onUserCount);
     socket.on("users:list", onUserList);
     socket.on("mod:banned", onBanned);
+    socket.on("stream:title", onStreamTitle);
+    socket.on("emojis:list", onEmojisList);
 
     socket.connect();
 
@@ -107,6 +119,8 @@ export function useChat() {
       socket.off("users:count", onUserCount);
       socket.off("users:list", onUserList);
       socket.off("mod:banned", onBanned);
+      socket.off("stream:title", onStreamTitle);
+      socket.off("emojis:list", onEmojisList);
       socket.disconnect();
     };
   }, []);
@@ -202,6 +216,8 @@ export function useChat() {
     isConnected,
     hasMoreHistory,
     loadingHistory,
+    streamTitle,
+    customEmojis,
     registerUser,
     loginUser,
     guestLogin,

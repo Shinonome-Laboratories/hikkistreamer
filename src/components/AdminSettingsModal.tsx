@@ -1,0 +1,399 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Trash2, UserX, UserCheck } from "lucide-react";
+import { socket } from "@/lib/socket";
+import type { CustomEmoji } from "../../shared/types";
+
+interface AdminSettingsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  streamTitle: string;
+  customEmojis: CustomEmoji[];
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function getToken(): string | null {
+  return localStorage.getItem("hikkistream_token");
+}
+
+// ─── Stream Title Tab ────────────────────────────────────────────────────────
+function StreamTitleTab({ currentTitle }: { currentTitle: string }) {
+  const [title, setTitle] = useState(currentTitle);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setTitle(currentTitle);
+  }, [currentTitle]);
+
+  const handleSave = async () => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      const res = await fetch("/api/admin/title", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error: string };
+        throw new Error(data.error || "Failed to update title");
+      }
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Stream Title</Label>
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={100}
+          className="h-8 text-sm"
+          placeholder="Enter stream title…"
+        />
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <Button
+        size="sm"
+        className="h-8"
+        onClick={handleSave}
+        disabled={saving || !title.trim() || title.trim() === currentTitle}
+      >
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+        {success ? "Saved!" : "Save Title"}
+      </Button>
+    </div>
+  );
+}
+
+// ─── Custom Emojis Tab ───────────────────────────────────────────────────────
+function CustomEmojisTab({ emojis }: { emojis: CustomEmoji[] }) {
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [deletingName, setDeletingName] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setError(null);
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(f.type)) {
+      setError("Unsupported format. Use jpeg, png, gif, or webp.");
+      return;
+    }
+    if (f.size > 2 * 1024 * 1024) {
+      setError("Image too large (max 1MB).");
+      return;
+    }
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  };
+
+  const handleAdd = async () => {
+    const cleanName = name.trim();
+    if (!cleanName || !file) return;
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(cleanName)) {
+      setError("Name must be 1-32 characters: letters, numbers, underscore, hyphen.");
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const res = await fetch("/api/admin/emoji", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ name: cleanName, image: dataUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error: string };
+        throw new Error(data.error || "Upload failed");
+      }
+      setName("");
+      setFile(null);
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (emojiName: string) => {
+    setDeletingName(emojiName);
+    try {
+      await fetch(`/api/admin/emoji/${encodeURIComponent(emojiName)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+    } catch {
+      // ignore
+    } finally {
+      setDeletingName(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Custom emojis are used with <code className="bg-secondary px-0.5 rounded">:name:</code> syntax in chat.
+        </p>
+        <div className="flex gap-2 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">Name</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+              maxLength={32}
+              className="h-8 text-sm w-36"
+              placeholder="e.g. hype"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Image</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {preview ? (
+                  <img src={preview} alt="preview" className="h-4 w-4 object-contain mr-1" />
+                ) : null}
+                {file ? "Change…" : "Choose File"}
+              </Button>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="h-8"
+            onClick={handleAdd}
+            disabled={uploading || !name.trim() || !file}
+          >
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+            Add
+          </Button>
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+
+      {emojis.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">No custom emojis yet.</p>
+      ) : (
+        <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto pr-1">
+          {emojis.map((emoji) => (
+            <div
+              key={emoji.name}
+              className="flex flex-col items-center gap-1 p-2 rounded-md bg-secondary/40 group relative"
+            >
+              <img
+                src={emoji.url}
+                alt={`:${emoji.name}:`}
+                className="h-8 w-8 object-contain"
+              />
+              <span className="text-[10px] text-muted-foreground truncate w-full text-center">
+                {emoji.name}
+              </span>
+              <button
+                onClick={() => handleDelete(emoji.name)}
+                disabled={deletingName === emoji.name}
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                title="Delete emoji"
+              >
+                {deletingName === emoji.name ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Banned Users Tab ────────────────────────────────────────────────────────
+interface BannedUser { id: string; username: string }
+
+function BannedUsersTab() {
+  const [users, setUsers] = useState<BannedUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [unbanningId, setUnbanningId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/banned", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json() as BannedUser[];
+      setUsers(data);
+    } catch {
+      setError("Failed to load banned users.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleUnban = async (userId: string) => {
+    setUnbanningId(userId);
+    try {
+      socket.emit("mod:unban", { userId });
+      // Optimistically remove from list
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch {
+      setError("Failed to unban user.");
+    } finally {
+      setUnbanningId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Registered accounts that are currently banned.
+        </p>
+        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={load} disabled={loading}>
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {!loading && users.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">No banned users.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+          {users.map((u) => (
+            <div
+              key={u.id}
+              className="flex items-center justify-between px-2 py-1.5 rounded-md bg-secondary/40"
+            >
+              <div className="flex items-center gap-2">
+                <UserX className="h-3.5 w-3.5 text-destructive shrink-0" />
+                <span className="text-sm font-medium">{u.username}</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => handleUnban(u.id)}
+                disabled={unbanningId === u.id}
+                title="Unban user"
+              >
+                {unbanningId === u.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <>
+                    <UserCheck className="h-3.5 w-3.5 mr-1" />
+                    Unban
+                  </>
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Modal ──────────────────────────────────────────────────────────────
+export function AdminSettingsModal({
+  open,
+  onOpenChange,
+  streamTitle,
+  customEmojis,
+}: AdminSettingsModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[520px] max-w-[95vw]">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Admin Settings</DialogTitle>
+        </DialogHeader>
+        <Tabs defaultValue="stream">
+          <TabsList className="w-full">
+            <TabsTrigger value="stream" className="flex-1 text-xs">Stream</TabsTrigger>
+            <TabsTrigger value="emojis" className="flex-1 text-xs">Custom Emojis</TabsTrigger>
+            <TabsTrigger value="banned" className="flex-1 text-xs">Banned Users</TabsTrigger>
+          </TabsList>
+          <TabsContent value="stream">
+            <StreamTitleTab currentTitle={streamTitle} />
+          </TabsContent>
+          <TabsContent value="emojis">
+            <CustomEmojisTab emojis={customEmojis} />
+          </TabsContent>
+          <TabsContent value="banned">
+            <BannedUsersTab />
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}

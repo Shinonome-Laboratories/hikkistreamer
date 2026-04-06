@@ -1,7 +1,8 @@
+import twemoji from "twemoji";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Trash2, Ban } from "lucide-react";
-import type { ChatMessage as ChatMessageType } from "../../shared/types";
+import type { ChatMessage as ChatMessageType, CustomEmoji } from "../../shared/types";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -9,6 +10,43 @@ interface ChatMessageProps {
   currentUserId: string | null;
   onDelete: (messageId: string) => void;
   onBan: (userId: string) => void;
+  customEmojis: CustomEmoji[];
+}
+
+const CUSTOM_EMOJI_PATTERN = /(:[a-zA-Z0-9_-]+:)/g;
+
+function renderContent(content: string, emojiMap: Map<string, string>): React.ReactNode[] {
+  const parts = content.split(CUSTOM_EMOJI_PATTERN);
+  return parts.map((part, i) => {
+    const match = part.match(/^:([a-zA-Z0-9_-]+):$/);
+    if (match) {
+      const url = emojiMap.get(match[1]);
+      if (url) {
+        return (
+          <img
+            key={i}
+            src={url}
+            alt={`:${match[1]}:`}
+            title={`:${match[1]}:`}
+            className="inline-block h-5 w-5 object-contain align-middle mx-0.5"
+          />
+        );
+      }
+    }
+    if (!part) return null;
+    // HTML-escape first to prevent XSS, then let twemoji inject safe img tags
+    const escaped = part
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+    const html = twemoji.parse(escaped, {
+      folder: "svg",
+      ext: ".svg",
+      base: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/",
+    });
+    return <span key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+  }).filter((n): n is React.ReactElement => n !== null);
 }
 
 export function ChatMessage({
@@ -17,7 +55,9 @@ export function ChatMessage({
   currentUserId,
   onDelete,
   onBan,
+  customEmojis,
 }: ChatMessageProps) {
+  const emojiMap = new Map(customEmojis.map((e) => [e.name, e.url]));
   if (message.is_deleted) {
     return (
       <div className="px-3 py-1 opacity-40 italic text-xs text-muted-foreground">
@@ -45,7 +85,7 @@ export function ChatMessage({
             className="text-sm break-words"
             style={{ color: message.message_color }}
           >
-            {message.content}
+            {renderContent(message.content, emojiMap)}
           </span>
         </span>
       </div>

@@ -50,6 +50,23 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+
+  CREATE TABLE IF NOT EXISTS stream_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS custom_emojis (
+    name TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
+
+// Seed default stream title if not set
+const existingTitle = db.prepare("SELECT value FROM stream_settings WHERE key = 'title'").get();
+if (!existingTitle) {
+  db.prepare("INSERT INTO stream_settings (key, value) VALUES ('title', 'hikkistream')").run();
+}
 
 export default db;

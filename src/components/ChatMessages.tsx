@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "./ChatMessage";
 import { Loader2 } from "lucide-react";
-import type { ChatMessage as ChatMessageType } from "../../shared/types";
+import type { ChatMessage as ChatMessageType, CustomEmoji } from "../../shared/types";
 
 interface ChatMessagesProps {
   messages: ChatMessageType[];
@@ -12,6 +12,7 @@ interface ChatMessagesProps {
   onLoadMore: () => void;
   onDelete: (messageId: string) => void;
   onBan: (userId: string) => void;
+  customEmojis: CustomEmoji[];
 }
 
 export function ChatMessages({
@@ -23,6 +24,7 @@ export function ChatMessages({
   onLoadMore,
   onDelete,
   onBan,
+  customEmojis,
 }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,7 @@ export function ChatMessages({
           currentUserId={currentUserId}
           onDelete={onDelete}
           onBan={onBan}
+          customEmojis={customEmojis}
         />
       ))}
       <div ref={bottomRef} />

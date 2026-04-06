@@ -128,3 +128,12 @@
     @apply font-sans;
     }
 }
+
+/* Twemoji inline emoji sizing */
+img.emoji {
+  height: 1.2em;
+  width: 1.2em;
+  display: inline-block;
+  vertical-align: -0.2em;
+  margin: 0 0.05em;
+}
