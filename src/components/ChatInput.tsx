@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SendHorizontal, Smile } from "lucide-react";
-import type { EmojiClickData } from "emoji-picker-react";
+import { EmojiStyle, Theme, type EmojiClickData } from "emoji-picker-react";
 import type { CustomEmoji } from "../../shared/types";
 
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
@@ -39,7 +39,10 @@ export function ChatInput({ onSend, disabled, onRequestLogin, customEmojis }: Ch
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
     if (emojiData.isCustom) {
-      insertText(`:${emojiData.unified}:`);
+      const original = customEmojis.find(
+        (e) => e.name.toLowerCase() === emojiData.unified.toLowerCase()
+      );
+      insertText(`:${original?.name ?? emojiData.unified}:`);
     } else {
       insertText(emojiData.emoji);
     }
@@ -98,6 +101,8 @@ export function ChatInput({ onSend, disabled, onRequestLogin, customEmojis }: Ch
             <EmojiPicker
               onEmojiClick={handleEmojiClick}
               customEmojis={customEmojisList}
+              emojiStyle={EmojiStyle.TWITTER}
+              theme={Theme.DARK}
               skinTonesDisabled
               searchPlaceholder="Search emojis…"
               height={380}

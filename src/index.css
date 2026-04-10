@@ -129,6 +129,25 @@
     }
 }
 
+/* Emoji picker theming */
+.EmojiPickerReact {
+  --epr-bg-color: var(--card);
+  --epr-category-label-bg-color: var(--card);
+  --epr-text-color: var(--foreground);
+  --epr-hover-bg-color: var(--secondary);
+  --epr-focus-bg-color: var(--secondary);
+  --epr-highlight-color: var(--primary);
+  --epr-search-input-bg-color: var(--input);
+  --epr-search-input-text-color: var(--foreground);
+  --epr-search-input-placeholder-color: var(--muted-foreground);
+  --epr-search-border-color: var(--border);
+  --epr-picker-border-color: var(--border);
+  --epr-border-radius: var(--radius);
+  --epr-header-padding: 8px;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+}
+
 /* Twemoji inline emoji sizing */
 img.emoji {
   height: 1.2em;

@@ -194,7 +194,7 @@ function CustomEmojisTab({ emojis }: { emojis: CustomEmoji[] }) {
               onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
               maxLength={32}
               className="h-8 text-sm w-36"
-              placeholder="e.g. hype"
+              placeholder="PogScared"
             />
           </div>
           <div className="space-y-1">
