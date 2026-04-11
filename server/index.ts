@@ -201,6 +201,15 @@ app.get("/api/admin/banned", (req, res) => {
   res.json(getBannedUsers());
 });
 
+// Serve frontend static files in production
+const distPath = path.join(__dirname, "..", "dist");
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.use((_req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
+
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
