@@ -132,9 +132,6 @@ export function LoginModal({
                   autoComplete="new-password"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                First account gets admin privileges.
-              </p>
               {authError && (
                 <p className="text-xs text-destructive">{authError}</p>
               )}

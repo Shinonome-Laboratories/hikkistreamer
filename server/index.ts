@@ -238,9 +238,12 @@ function getConnectedUsers(): User[] {
 }
 
 io.on("connection", (socket) => {
-  // Send stream title and emoji list immediately on connection (before auth)
+  // Send current state on new connection
   socket.emit("stream:title", getStreamTitle());
   socket.emit("emojis:list", getCustomEmojis());
+  socket.emit("chat:history", getRecentMessages(50));
+  socket.emit("users:count", socketUsers.size);
+  socket.emit("users:list", getConnectedUsers());
 
   socket.on("auth:register", (data) => {
     const result = register(data.username, data.password);
