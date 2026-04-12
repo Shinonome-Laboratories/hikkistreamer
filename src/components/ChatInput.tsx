@@ -80,17 +80,19 @@ export function ChatInput({ onSend, disabled, onRequestLogin, customEmojis }: Ch
         />
       </div>
       <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 shrink-0"
-            disabled={disabled}
-            title="Emoji picker"
-          >
-            <Smile className="h-4 w-4" />
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 shrink-0"
+              title="Emoji picker"
+            />
+          }
+          disabled={disabled}
+        >
+          <Smile className="h-4 w-4" />
         </PopoverTrigger>
         <PopoverContent
           side="top"

@@ -16,7 +16,7 @@ interface ChatMessageProps {
 const CUSTOM_EMOJI_PATTERN = /(:[a-zA-Z0-9_-]+:)/g;
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/g;
 
-function renderTextWithLinks(text: string, keyPrefix: string): React.ReactNode[] {
+function renderTextWithLinks(text: string, keyPrefix: string): React.ReactElement[] {
   const parts = text.split(URL_PATTERN);
   return parts.map((part, i) => {
     if (i % 2 === 1) {
