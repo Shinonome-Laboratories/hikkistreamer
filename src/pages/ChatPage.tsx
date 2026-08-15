@@ -23,6 +23,7 @@ export default function ChatPage() {
     loginUser,
     guestLogin,
     sendMessage,
+    uploadMedia,
     loadMoreHistory,
     deleteMsg,
     banUserAction,
@@ -69,6 +70,7 @@ export default function ChatPage() {
         />
         <ChatInput
           onSend={sendMessage}
+          onUploadMedia={uploadMedia}
           disabled={!user}
           onRequestLogin={() => setLoginModalOpen(true)}
           customEmojis={customEmojis}

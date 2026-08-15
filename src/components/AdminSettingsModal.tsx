@@ -118,8 +118,8 @@ function CustomEmojisTab({ emojis }: { emojis: CustomEmoji[] }) {
     const f = e.target.files?.[0];
     if (!f) return;
     setError(null);
-    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(f.type)) {
-      setError("Unsupported format. Use jpeg, png, gif, or webp.");
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"].includes(f.type)) {
+      setError("Unsupported format. Use jpeg, png, gif, webp, or avif.");
       return;
     }
     if (f.size > 2 * 1024 * 1024) {
@@ -129,6 +129,10 @@ function CustomEmojisTab({ emojis }: { emojis: CustomEmoji[] }) {
     if (preview) URL.revokeObjectURL(preview);
     setFile(f);
     setPreview(URL.createObjectURL(f));
+    // Auto-fill emoji name from the filename (without extension)
+    const baseName = f.name.replace(/\.[^.]+$/, "");
+    const cleanName = baseName.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+    if (cleanName) setName(cleanName);
   };
 
   const handleAdd = async () => {
@@ -203,7 +207,7 @@ function CustomEmojisTab({ emojis }: { emojis: CustomEmoji[] }) {
               <input
                 type="file"
                 ref={fileInputRef}
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
                 onChange={handleFileChange}
                 className="hidden"
               />

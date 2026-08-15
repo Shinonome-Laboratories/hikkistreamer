@@ -33,6 +33,8 @@ db.exec(`
     user_id TEXT NOT NULL,
     username TEXT NOT NULL,
     content TEXT NOT NULL,
+    media_url TEXT,
+    media_type TEXT,
     avatar_url TEXT,
     username_color TEXT DEFAULT '#ffffff',
     message_color TEXT DEFAULT '#d1d5db',
@@ -62,6 +64,15 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 `);
+
+// Migration: add media columns to existing messages table
+const messageCols = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
+if (!messageCols.some((c) => c.name === "media_url")) {
+  db.exec("ALTER TABLE messages ADD COLUMN media_url TEXT");
+}
+if (!messageCols.some((c) => c.name === "media_type")) {
+  db.exec("ALTER TABLE messages ADD COLUMN media_type TEXT");
+}
 
 // Seed default stream title if not set
 const existingTitle = db.prepare("SELECT value FROM stream_settings WHERE key = 'title'").get();

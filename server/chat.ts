@@ -1,12 +1,14 @@
 import { randomUUID } from "crypto";
 import db from "./db.js";
-import type { ChatMessage } from "../shared/types.js";
+import type { ChatMessage, MediaType } from "../shared/types.js";
 
 interface DbMessage {
   id: string;
   user_id: string;
   username: string;
   content: string;
+  media_url: string | null;
+  media_type: MediaType | null;
   avatar_url: string | null;
   username_color: string;
   message_color: string;
@@ -17,6 +19,7 @@ interface DbMessage {
 function toMessage(row: DbMessage): ChatMessage {
   return {
     ...row,
+    media_type: (row.media_type as MediaType | null) ?? null,
     is_deleted: row.is_deleted === 1,
   };
 }
@@ -25,17 +28,20 @@ export function createMessage(
   userId: string,
   username: string,
   content: string,
+  mediaUrl: string | null,
+  mediaType: MediaType | null,
   avatarUrl: string | null,
   usernameColor: string,
   messageColor: string
 ): ChatMessage | null {
   content = content.trim();
-  if (!content || content.length > 500) return null;
+  const hasMedia = Boolean(mediaUrl && mediaType);
+  if ((!content && !hasMedia) || content.length > 500) return null;
 
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO messages (id, user_id, username, content, avatar_url, username_color, message_color) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(id, userId, username, content, avatarUrl, usernameColor, messageColor);
+    "INSERT INTO messages (id, user_id, username, content, media_url, media_type, avatar_url, username_color, message_color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(id, userId, username, content, mediaUrl, mediaType, avatarUrl, usernameColor, messageColor);
 
   const row = db.prepare("SELECT * FROM messages WHERE id = ?").get(id) as DbMessage;
   return toMessage(row);

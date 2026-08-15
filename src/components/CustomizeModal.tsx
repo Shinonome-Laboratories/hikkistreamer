@@ -57,8 +57,8 @@ function CustomizeForm({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadError(null);
-    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(file.type)) {
-      setUploadError("Unsupported format. Use jpeg, png, gif, or webp.");
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"].includes(file.type)) {
+      setUploadError("Unsupported format. Use jpeg, png, gif, webp, or avif.");
       return;
     }
     if (file.size > 3 * 1024 * 1024) {
@@ -117,7 +117,7 @@ function CustomizeForm({
             <input
               type="file"
               ref={fileInputRef}
-              accept="image/jpeg,image/png,image/gif,image/webp"
+              accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
               onChange={handleFileChange}
               className="hidden"
             />

@@ -29,7 +29,8 @@ export function ChatMessages({
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
-  const prevMessageCount = useRef(messages.length);
+  const prevMessageCount = useRef(0);
+  const didInitialScroll = useRef(false);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -43,24 +44,48 @@ export function ChatMessages({
     }
   }, [hasMoreHistory, loadingHistory, onLoadMore]);
 
+  // Scroll to bottom on page load once the initial chat history arrives
   useEffect(() => {
-    if (messages.length > prevMessageCount.current && shouldAutoScroll.current) {
+    if (!didInitialScroll.current && messages.length > 0) {
+      didInitialScroll.current = true;
+      bottomRef.current?.scrollIntoView();
+    }
+  }, [messages]);
+
+  // Re-scroll to bottom when media (images/videos) finish loading — they load
+  // asynchronously and expand the scroll height after the initial scroll.
+  // Uses capture since `load` events don't bubble. Respects `shouldAutoScroll`
+  // so it won't yank the user down if they scrolled up.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleMediaLoad = () => {
+      if (shouldAutoScroll.current) {
+        bottomRef.current?.scrollIntoView();
+      }
+    };
+
+    el.addEventListener("load", handleMediaLoad, true);
+    return () => el.removeEventListener("load", handleMediaLoad, true);
+  }, []);
+
+  // Auto-scroll to bottom (smoothly) when new messages arrive
+  useEffect(() => {
+    if (
+      messages.length > prevMessageCount.current &&
+      shouldAutoScroll.current &&
+      didInitialScroll.current
+    ) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     prevMessageCount.current = messages.length;
   }, [messages]);
 
-  useEffect(() => {
-    if (messages.length > 0 && prevMessageCount.current === messages.length) {
-      bottomRef.current?.scrollIntoView();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length > 0]);
-
   return (
     <div
       ref={scrollRef}
-      className="flex-1 min-h-0 overflow-y-auto"
+      className="chat-scroll flex-1 min-h-0 overflow-y-auto"
       onScroll={handleScroll}
     >
       {loadingHistory && (

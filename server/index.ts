@@ -4,7 +4,9 @@ import { Server } from "socket.io";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
+import multer from "multer";
 import {
   register,
   login,
@@ -28,13 +30,50 @@ import type {
   ClientToServerEvents,
   User,
   CustomEmoji,
+  MediaType,
 } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const avatarsDir = path.join(__dirname, "..", "data", "avatars");
 const emojisDir = path.join(__dirname, "..", "data", "emojis");
+const uploadsDir = path.join(__dirname, "..", "data", "uploads");
 fs.mkdirSync(avatarsDir, { recursive: true });
 fs.mkdirSync(emojisDir, { recursive: true });
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+// --- chat media uploads ---
+const MAX_MEDIA_BYTES = 10 * 1024 * 1024; // 10MB
+const ALLOWED_MEDIA: Record<string, MediaType> = {
+  "image/jpeg": "image",
+  "image/png": "image",
+  "image/gif": "image",
+  "image/webp": "image",
+  "image/avif": "image",
+  "video/mp4": "video",
+  "video/webm": "video",
+  "video/quicktime": "video",
+};
+
+const uploadStorage = multer.diskStorage({
+  destination: uploadsDir,
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() ||
+      (file.mimetype === "image/jpeg" ? ".jpg" : `.${file.mimetype.split("/")[1]}`);
+    cb(null, `${randomUUID()}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: MAX_MEDIA_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MEDIA[file.mimetype]) {
+      cb(null, true);
+    } else {
+      cb(new Error("Unsupported file type. Allowed: jpeg, png, gif, webp, avif, mp4, webm, mov."));
+    }
+  },
+});
 
 // --- settings helpers ---
 function getStreamTitle(): string {
@@ -61,6 +100,7 @@ app.use(cors());
 app.use(express.json({ limit: "3mb" }));
 app.use("/avatars", express.static(avatarsDir));
 app.use("/emojis", express.static(emojisDir));
+app.use("/uploads", express.static(uploadsDir));
 
 app.post("/api/avatar", (req, res) => {
   const auth = req.headers.authorization;
@@ -83,9 +123,9 @@ app.post("/api/avatar", (req, res) => {
     res.status(400).json({ error: "No image provided" });
     return;
   }
-  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.+)$/);
+  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp|avif));base64,(.+)$/);
   if (!match) {
-    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp." });
+    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp, avif." });
     return;
   }
   const [, mimeType, base64Data] = match;
@@ -95,13 +135,10 @@ app.post("/api/avatar", (req, res) => {
     return;
   }
   const ext = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
-  const filename = `${user.id}.${ext}`;
+  // Use a unique filename per upload so historical messages keep their old avatar.
+  // Never delete previous avatar files — they may still be referenced by scrollback.
+  const filename = `${user.id}-${randomUUID()}.${ext}`;
   const filepath = path.join(avatarsDir, filename);
-  // Remove any previous avatar file with a different extension
-  for (const e of ["jpg", "png", "gif", "webp"]) {
-    const p = path.join(avatarsDir, `${user.id}.${e}`);
-    if (p !== filepath && fs.existsSync(p)) fs.unlinkSync(p);
-  }
   fs.writeFileSync(filepath, buffer);
   const avatarUrl = `/avatars/${filename}`;
   updateCustomization(user.id, { avatar_url: avatarUrl });
@@ -111,6 +148,42 @@ app.post("/api/avatar", (req, res) => {
     }
   }
   res.json({ avatar_url: avatarUrl });
+});
+
+// --- chat media upload (images/videos, max 10MB) ---
+app.post("/api/upload", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const user = authenticateToken(auth.slice(7));
+  if (!user) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        res.status(400).json({ error: "File too large (max 10MB)" });
+      } else {
+        res.status(400).json({ error: err.message || "Upload failed" });
+      }
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ error: "No file provided" });
+      return;
+    }
+    const mediaType = ALLOWED_MEDIA[req.file.mimetype];
+    if (!mediaType) {
+      fs.unlinkSync(req.file.path);
+      res.status(400).json({ error: "Unsupported file type" });
+      return;
+    }
+    res.json({ url: `/uploads/${req.file.filename}`, mediaType });
+  });
 });
 
 // --- public settings endpoint ---
@@ -147,9 +220,9 @@ app.post("/api/admin/emoji", (req, res) => {
   if (!image || typeof image !== "string") {
     res.status(400).json({ error: "No image provided" }); return;
   }
-  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,(.+)$/);
+  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp|avif));base64,(.+)$/);
   if (!match) {
-    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp." }); return;
+    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp, avif." }); return;
   }
   const [, mimeType, base64Data] = match;
   const buffer = Buffer.from(base64Data, "base64");
@@ -158,7 +231,7 @@ app.post("/api/admin/emoji", (req, res) => {
   }
   const ext = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
   // Remove old file if exists with different extension
-  for (const e of ["jpg", "png", "gif", "webp"]) {
+  for (const e of ["jpg", "png", "gif", "webp", "avif"]) {
     const p = path.join(emojisDir, `${name}.${e}`);
     if (fs.existsSync(p) && e !== ext) fs.unlinkSync(p);
   }
@@ -183,7 +256,7 @@ app.delete("/api/admin/emoji/:name", (req, res) => {
   }
   db.prepare("DELETE FROM custom_emojis WHERE name = ?").run(name);
   // Remove file
-  for (const e of ["jpg", "png", "gif", "webp"]) {
+  for (const e of ["jpg", "png", "gif", "webp", "avif"]) {
     const p = path.join(emojisDir, `${name}.${e}`);
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
@@ -306,10 +379,22 @@ io.on("connection", (socket) => {
     const user = socketUsers.get(socket.id);
     if (!user) return;
 
+    // Only allow media that was uploaded through /api/upload (starts with /uploads/)
+    const mediaUrl =
+      typeof data.mediaUrl === "string" && /^\/uploads\/[a-zA-Z0-9.-]+$/.test(data.mediaUrl)
+        ? data.mediaUrl
+        : null;
+    const mediaType: MediaType | null =
+      mediaUrl && (data.mediaType === "image" || data.mediaType === "video")
+        ? data.mediaType
+        : null;
+
     const message = createMessage(
       user.id,
       user.username,
-      data.content,
+      typeof data.content === "string" ? data.content : "",
+      mediaUrl,
+      mediaType,
       user.avatar_url,
       user.username_color,
       user.message_color

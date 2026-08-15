@@ -38,7 +38,7 @@ export function UserListModal({
               className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30"
             >
               {user.avatar_url && (
-                <Avatar className="h-6 w-6">
+                <Avatar className="h-8 w-8">
                   <AvatarImage src={user.avatar_url} />
                 </Avatar>
               )}

@@ -61,7 +61,7 @@ function renderContent(content: string, emojiMap: Map<string, string>): React.Re
             src={url}
             alt={`:${match[1]}:`}
             title={`:${match[1]}:`}
-            className="inline-block h-5 w-5 object-contain align-middle mx-0.5"
+            className="inline-block h-8 w-8 object-contain align-middle mx-0.5"
           />,
         ];
       }
@@ -91,7 +91,7 @@ export function ChatMessage({
   return (
     <div className="group flex items-start gap-2 px-3 py-1.5 hover:bg-secondary/30 transition-colors">
       {message.avatar_url && (
-        <Avatar className="h-6 w-6 mt-0.5 shrink-0">
+        <Avatar className="h-8 w-8 mt-0.5 shrink-0">
           <AvatarImage src={message.avatar_url} />
         </Avatar>
       )}
@@ -110,8 +110,35 @@ export function ChatMessage({
             {renderContent(message.content, emojiMap)}
           </span>
         </span>
+        {message.media_url && (
+          <div className="mt-1.5">
+            {message.media_type === "video" ? (
+              <video
+                src={message.media_url}
+                controls
+                preload="metadata"
+                className="max-h-72 max-w-[280px] rounded-lg border border-border object-contain bg-black/40"
+              />
+            ) : (
+              <a
+                href={message.media_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block"
+                title="Open image in new tab"
+              >
+                <img
+                  src={message.media_url}
+                  alt=""
+                  loading="lazy"
+                  className="max-h-72 max-w-[280px] rounded-lg border border-border object-contain bg-black/40 transition-opacity hover:opacity-90"
+                />
+              </a>
+            )}
+          </div>
+        )}
       </div>
-      {isAdmin && message.user_id !== currentUserId && (
+      {isAdmin && (
         <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
           <Button
             variant="ghost"
@@ -122,15 +149,17 @@ export function ChatMessage({
           >
             <Trash2 className="h-3 w-3" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 text-muted-foreground hover:text-destructive"
-            onClick={() => onBan(message.user_id)}
-            title="Ban user"
-          >
-            <Ban className="h-3 w-3" />
-          </Button>
+          {message.user_id !== currentUserId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+              onClick={() => onBan(message.user_id)}
+              title="Ban user"
+            >
+              <Ban className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       )}
     </div>

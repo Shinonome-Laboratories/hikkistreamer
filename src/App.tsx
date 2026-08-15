@@ -26,6 +26,7 @@ export default function App() {
     loginUser,
     guestLogin,
     sendMessage,
+    uploadMedia,
     loadMoreHistory,
     deleteMsg,
     banUserAction,
@@ -96,7 +97,13 @@ export default function App() {
           onBan={banUserAction}
           customEmojis={customEmojis}
         />
-        <ChatInput onSend={sendMessage} disabled={!user} onRequestLogin={() => setLoginModalOpen(true)} customEmojis={customEmojis} />
+        <ChatInput
+          onSend={sendMessage}
+          onUploadMedia={uploadMedia}
+          disabled={!user}
+          onRequestLogin={() => setLoginModalOpen(true)}
+          customEmojis={customEmojis}
+        />
       </div>
 
       {/* Modals */}

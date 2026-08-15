@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { socket } from "@/lib/socket";
-import type { User, ChatMessage, AuthPayload, CustomEmoji } from "../../shared/types";
+import type {
+  User,
+  ChatMessage,
+  AuthPayload,
+  CustomEmoji,
+  MediaType,
+} from "../../shared/types";
+
+export interface UploadedMedia {
+  url: string;
+  type: MediaType;
+}
 
 export function useChat() {
   const [user, setUser] = useState<User | null>(null);
@@ -143,9 +154,69 @@ export function useChat() {
     socket.emit("auth:guest", { username });
   }, []);
 
-  const sendMessage = useCallback((content: string) => {
-    socket.emit("chat:send", { content });
+  const sendMessage = useCallback((content: string, media?: UploadedMedia) => {
+    socket.emit("chat:send", {
+      content,
+      mediaUrl: media?.url,
+      mediaType: media?.type,
+    });
   }, []);
+
+  /**
+   * Upload a media file to the server. Reports progress via `onProgress` (0-100).
+   * Returns a promise plus a `cancel()` to abort the in-flight request.
+   */
+  const uploadMedia = useCallback(
+    (
+      file: File,
+      onProgress: (pct: number) => void
+    ): { promise: Promise<UploadedMedia>; cancel: () => void } => {
+      const token = localStorage.getItem("hikkistream_token");
+      if (!token) throw new Error("Not authenticated");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload");
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      const promise = new Promise<UploadedMedia>((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText) as {
+                url: string;
+                mediaType: MediaType;
+              };
+              resolve({ url: data.url, type: data.mediaType });
+            } catch {
+              reject(new Error("Invalid server response"));
+            }
+          } else {
+            try {
+              const data = JSON.parse(xhr.responseText) as { error: string };
+              reject(new Error(data.error || "Upload failed"));
+            } catch {
+              reject(new Error("Upload failed"));
+            }
+          }
+        };
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.onabort = () => reject(new Error("Upload cancelled"));
+        xhr.send(formData);
+      });
+
+      return { promise, cancel: () => xhr.abort() };
+    },
+    []
+  );
 
   const loadMoreHistory = useCallback(() => {
     if (loadingHistory || !hasMoreHistory || messages.length === 0) return;
@@ -222,6 +293,7 @@ export function useChat() {
     loginUser,
     guestLogin,
     sendMessage,
+    uploadMedia,
     loadMoreHistory,
     deleteMsg,
     banUserAction,

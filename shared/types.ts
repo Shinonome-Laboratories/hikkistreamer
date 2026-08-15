@@ -8,11 +8,15 @@ export interface User {
   message_color: string;
 }
 
+export type MediaType = "image" | "video";
+
 export interface ChatMessage {
   id: string;
   user_id: string;
   username: string;
   content: string;
+  media_url: string | null;
+  media_type: MediaType | null;
   avatar_url: string | null;
   username_color: string;
   message_color: string;
@@ -53,7 +57,7 @@ export interface ClientToServerEvents {
   "auth:login": (data: { username: string; password: string }) => void;
   "auth:guest": (data: { username: string }) => void;
   "auth:token": (data: { token: string }) => void;
-  "chat:send": (data: { content: string }) => void;
+  "chat:send": (data: { content: string; mediaUrl?: string; mediaType?: MediaType }) => void;
   "chat:history": (data: { before: string; limit: number }) => void;
   "users:request_list": () => void;
   "mod:delete": (data: { messageId: string }) => void;
