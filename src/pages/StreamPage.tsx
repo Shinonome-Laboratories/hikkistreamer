@@ -10,18 +10,20 @@ export default function StreamPage() {
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background overflow-hidden">
-      <div className="flex-1 min-w-0 flex flex-col pt-3">
-        <div className="flex-1 min-h-0">
-          <StreamPlayer />
-        </div>
-        <div className="flex items-center gap-2 mt-2 px-3">
-          <h1 className="text-sm font-semibold text-foreground">{streamTitle}</h1>
+    <div className="group relative h-screen w-screen bg-background overflow-hidden">
+      <div className="absolute inset-0">
+        <StreamPlayer />
+      </div>
+      <div className="absolute top-3 left-3 right-3 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
+        <div className="flex items-center gap-2">
+          <h1 className="text-sm font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+            {streamTitle}
+          </h1>
           {user?.is_admin && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 text-muted-foreground hover:text-foreground"
+              className="h-5 w-5 text-muted-foreground hover:text-foreground pointer-events-auto"
               onClick={() => setAdminSettingsOpen(true)}
               title="Admin settings"
             >
@@ -29,7 +31,9 @@ export default function StreamPage() {
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground px-3">Live stream</p>
+        <p className="text-xs text-muted-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+          Live stream
+        </p>
       </div>
 
       {user?.is_admin && (
