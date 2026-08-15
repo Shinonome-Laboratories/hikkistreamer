@@ -11,9 +11,11 @@ export default function StreamPage() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background overflow-hidden">
-      <div className="flex-1 min-w-0 flex flex-col p-3">
-        <StreamPlayer />
-        <div className="flex items-center gap-2 mt-2">
+      <div className="flex-1 min-w-0 flex flex-col pt-3">
+        <div className="flex-1 min-h-0">
+          <StreamPlayer />
+        </div>
+        <div className="flex items-center gap-2 mt-2 px-3">
           <h1 className="text-sm font-semibold text-foreground">{streamTitle}</h1>
           {user?.is_admin && (
             <Button
@@ -27,7 +29,7 @@ export default function StreamPage() {
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">Live stream</p>
+        <p className="text-xs text-muted-foreground px-3">Live stream</p>
       </div>
 
       {user?.is_admin && (

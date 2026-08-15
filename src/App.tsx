@@ -55,10 +55,10 @@ export default function App() {
     <div className="h-screen w-screen flex flex-col lg:flex-row bg-background overflow-hidden">
       {/* Stream panel */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="p-2 pb-0 lg:p-3 lg:pb-0">
+        <div className="flex-1 min-h-0 pt-2 pb-0 lg:pt-3 lg:pb-0">
           <StreamPlayer />
         </div>
-        <div className="flex-1 p-2 lg:p-3">
+        <div className="p-2 lg:p-3">
           <div className="flex items-center gap-2">
             <h1 className="text-sm font-semibold text-foreground">{streamTitle}</h1>
             {user?.is_admin && (
