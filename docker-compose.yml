@@ -3,12 +3,11 @@ services:
     build: .
     ports:
       - "3001:3001"
+    # Persistent data (SQLite DB, avatars, emojis, uploads) is stored in ./data,
+    # relative to this compose file, so it lives on the host next to the repo.
     volumes:
-      - hikkistream_data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=3001
-
-volumes:
-  hikkistream_data:
