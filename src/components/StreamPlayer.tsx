@@ -59,13 +59,33 @@ function createSwitchButton(onClick: () => void, mode: Protocol): HTMLButtonElem
   button.setAttribute("aria-label", tooltip);
   button.title = tooltip;
   button.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-      <path d="M21 3v5h-5"></path>
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-      <path d="M3 21v-5h5"></path>
+    <svg viewBox="0 -6 46 46" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <path d="M46,37H2a1,1,0,0,1-1-1V8A1,1,0,0,1,2,7H46a1,1,0,0,1,1,1V36A1,1,0,0,1,46,37ZM45,9H3V35H45ZM21,16a.975.975,0,0,1,.563.2l7.771,4.872a.974.974,0,0,1,.261,1.715l-7.974,4.981A.982.982,0,0,1,21,28a1,1,0,0,1-1-1V17A1,1,0,0,1,21,16ZM15,39H33a1,1,0,0,1,0,2H15a1,1,0,0,1,0-2Z" transform="translate(-1 -7)" fill-rule="evenodd"></path>
     </svg>
     <span class="plyr__switch-label">${currentLabel}</span>
+  `;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  });
+
+  return button;
+}
+
+function createReloadButton(onClick: () => void): HTMLButtonElement {
+  const tooltip = "Reload player";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "plyr__controls__item plyr__control";
+  button.setAttribute("data-plyr", "reload");
+  button.setAttribute("aria-label", tooltip);
+  button.title = tooltip;
+  button.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+      <path d="M20.9844 10H17M20.9844 10V6M20.9844 10L17.6569 6.34315C14.5327 3.21895 9.46734 3.21895 6.34315 6.34315C3.21895 9.46734 3.21895 14.5327 6.34315 17.6569C9.46734 20.781 14.5327 20.781 17.6569 17.6569C18.4407 16.873 19.0279 15.9669 19.4184 15"></path>
+    </svg>
   `;
   button.addEventListener("click", (event) => {
     event.preventDefault();
@@ -79,9 +99,10 @@ function createSwitchButton(onClick: () => void, mode: Protocol): HTMLButtonElem
 interface PlayerCoreProps {
   mode: Protocol;
   onSwitch: () => void;
+  onReload: () => void;
 }
 
-function PlayerCore({ mode, onSwitch }: PlayerCoreProps) {
+function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -234,6 +255,10 @@ function PlayerCore({ mode, onSwitch }: PlayerCoreProps) {
       plyr.elements.controls?.appendChild(switchButton);
     }
 
+    // Inject the reload control right after the protocol switch.
+    const reloadButton = createReloadButton(onReload);
+    switchButton.insertAdjacentElement("afterend", reloadButton);
+
     return () => {
       disposed = true;
       reader?.close();
@@ -251,7 +276,7 @@ function PlayerCore({ mode, onSwitch }: PlayerCoreProps) {
       // wrapper; clear the container entirely so each mount starts fresh.
       container.replaceChildren();
     };
-  }, [mode, onSwitch]);
+  }, [mode, onSwitch, onReload]);
 
   return (
     <div className="w-full h-full flex items-center justify-center overflow-hidden">
@@ -269,6 +294,7 @@ function PlayerCore({ mode, onSwitch }: PlayerCoreProps) {
 
 export function StreamPlayer() {
   const [mode, setMode] = useState<Protocol>(readProtocol);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const switchMode = useCallback(() => {
     setMode((current) => {
@@ -278,7 +304,19 @@ export function StreamPlayer() {
     });
   }, []);
 
+  const reload = useCallback(() => {
+    setReloadKey((key) => key + 1);
+  }, []);
+
   // `key` forces a full teardown and re-initialization when the protocol
-  // changes, avoiding any stale player/connection state.
-  return <PlayerCore key={mode} mode={mode} onSwitch={switchMode} />;
+  // changes or a reload is requested, avoiding any stale player/connection
+  // state.
+  return (
+    <PlayerCore
+      key={`${mode}-${reloadKey}`}
+      mode={mode}
+      onSwitch={switchMode}
+      onReload={reload}
+    />
+  );
 }

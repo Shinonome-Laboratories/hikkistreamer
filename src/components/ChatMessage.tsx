@@ -117,7 +117,7 @@ export function ChatMessage({
                 src={message.media_url}
                 controls
                 preload="metadata"
-                className="max-h-72 max-w-[280px] rounded-lg border border-border object-contain bg-black/40"
+                className="max-h-72 max-w-[280px] rounded-sm object-contain bg-black/40"
               />
             ) : (
               <a
@@ -131,7 +131,7 @@ export function ChatMessage({
                   src={message.media_url}
                   alt=""
                   loading="lazy"
-                  className="max-h-72 max-w-[280px] rounded-lg border border-border object-contain bg-black/40 transition-opacity hover:opacity-90"
+                  className="max-h-72 max-w-[280px] rounded-sm object-contain bg-black/40 transition-opacity hover:opacity-90"
                 />
               </a>
             )}

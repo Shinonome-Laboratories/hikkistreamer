@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent, type ChangeEvent, lazy, Suspense } from "react";
+import { useState, useRef, type FormEvent, type ChangeEvent, type ClipboardEvent, lazy, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -30,6 +30,18 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function mimeToExt(mime: string): string {
+  const ext: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/avif": "avif",
+    "image/bmp": "bmp",
+  };
+  return ext[mime] ?? "png";
 }
 
 export function ChatInput({
@@ -113,7 +125,15 @@ export function ChatInput({
     setSelectedFile(file);
     setUploading(true);
 
-    const { promise, cancel } = onUploadMedia(file, setUploadProgress);
+    let handle: { promise: Promise<UploadedMedia>; cancel: () => void };
+    try {
+      handle = onUploadMedia(file, setUploadProgress);
+    } catch (err) {
+      setUploading(false);
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+      return;
+    }
+    const { promise, cancel } = handle;
     cancelUploadRef.current = cancel;
     promise
       .then((media) => {
@@ -137,6 +157,22 @@ export function ChatInput({
     e.target.value = "";
     if (!file) return;
     startUpload(file);
+  };
+
+  const handlePaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const blob = item.getAsFile();
+        if (!blob) return;
+        e.preventDefault();
+        const name = blob.name || `pasted-${Date.now()}.${mimeToExt(blob.type)}`;
+        startUpload(new File([blob], name, { type: blob.type }));
+        return;
+      }
+    }
   };
 
   const cancelUpload = () => {
@@ -261,7 +297,7 @@ export function ChatInput({
           size="icon"
           variant="ghost"
           className="h-8 w-8 shrink-0"
-          title="Attach image or video (max 10MB)"
+          title="Attach image or video (max 10MB) — or paste an image from clipboard"
           disabled={disabled}
           onClick={() => {
             if (disabled) {
@@ -286,6 +322,7 @@ export function ChatInput({
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            onPaste={handlePaste}
             placeholder={disabled ? "Login to chat..." : "Type a message..."}
             disabled={disabled}
             maxLength={500}

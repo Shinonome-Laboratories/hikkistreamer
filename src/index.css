@@ -231,3 +231,12 @@ img.emoji {
   height: 18px;
   flex-shrink: 0;
 }
+
+/* Reload control — stroke-only icon. Plyr's `.plyr__control svg` rule sets
+   `fill: currentColor`, which would wrongly fill this outline icon. */
+.plyr [data-plyr="reload"] svg {
+  fill: none;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
