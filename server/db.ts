@@ -22,6 +22,7 @@ db.exec(`
     password_hash TEXT,
     is_guest INTEGER DEFAULT 0,
     is_admin INTEGER DEFAULT 0,
+    is_moderator INTEGER DEFAULT 0,
     is_banned INTEGER DEFAULT 0,
     avatar_url TEXT,
     username_color TEXT DEFAULT '#ffffff',
@@ -84,6 +85,12 @@ if (!messageCols.some((c) => c.name === "media_url")) {
 }
 if (!messageCols.some((c) => c.name === "media_type")) {
   db.exec("ALTER TABLE messages ADD COLUMN media_type TEXT");
+}
+
+// Migration: add moderator role to existing users table
+const userCols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+if (!userCols.some((c) => c.name === "is_moderator")) {
+  db.exec("ALTER TABLE users ADD COLUMN is_moderator INTEGER DEFAULT 0");
 }
 
 // Seed default stream title if not set

@@ -6,6 +6,11 @@ import type { ChatMessage as ChatMessageType, CustomEmoji } from "../../shared/t
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  /** Staff (admin or moderator) — can use moderation actions. */
+  canModerate: boolean;
+  /** Admins only — can ban users. */
+  canBan: boolean;
+  /** Whether the viewer is an admin (admins can act on any message). */
   isAdmin: boolean;
   currentUserId: string | null;
   onDelete: (messageId: string) => void;
@@ -73,6 +78,8 @@ function renderContent(content: string, emojiMap: Map<string, string>): React.Re
 
 export function ChatMessage({
   message,
+  canModerate,
+  canBan,
   isAdmin,
   currentUserId,
   onDelete,
@@ -80,6 +87,21 @@ export function ChatMessage({
   customEmojis,
 }: ChatMessageProps) {
   const emojiMap = new Map(customEmojis.map((e) => [e.name, e.url]));
+
+  // Moderators can delete their own messages and messages from regular users;
+  // admins can delete anything.
+  const canDeleteMessage =
+    canModerate &&
+    (isAdmin ||
+      message.user_id === currentUserId ||
+      (!message.author_is_admin && !message.author_is_moderator));
+
+  // Banning is admin-only and never targets staff or yourself.
+  const canBanUser =
+    canBan &&
+    message.user_id !== currentUserId &&
+    !message.author_is_admin &&
+    !message.author_is_moderator;
   if (message.is_deleted) {
     return (
       <div className="px-3 py-1 opacity-40 italic text-xs text-muted-foreground">
@@ -138,18 +160,20 @@ export function ChatMessage({
           </div>
         )}
       </div>
-      {isAdmin && (
+      {(canDeleteMessage || canBanUser) && (
         <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 text-muted-foreground hover:text-destructive"
-            onClick={() => onDelete(message.id)}
-            title="Delete message"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-          {message.user_id !== currentUserId && (
+          {canDeleteMessage && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(message.id)}
+              title="Delete message"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+          {canBanUser && (
             <Button
               variant="ghost"
               size="icon"

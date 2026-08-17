@@ -33,7 +33,11 @@ export function ChatHeader({
               className="text-xs font-medium mr-1 flex items-center gap-1"
               style={{ color: user.username_color }}
             >
-              {user.is_admin && <Shield className="h-3 w-3 text-yellow-500" />}
+              {user.is_admin ? (
+                <Shield className="h-3 w-3 text-yellow-500" />
+              ) : user.is_moderator ? (
+                <Shield className="h-3 w-3 text-sky-500" />
+              ) : null}
               {user.username}
             </span>
             <Button

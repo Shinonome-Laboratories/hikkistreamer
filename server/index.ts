@@ -16,6 +16,8 @@ import {
   banUser,
   unbanUser,
   getUserById,
+  getRegisteredUsers,
+  setModerator,
 } from "./auth.js";
 import {
   createMessage,
@@ -23,6 +25,7 @@ import {
   getMessagesBefore,
   deleteMessage,
   deleteUserMessages,
+  getMessageAuthor,
 } from "./chat.js";
 import {
   getPlaylistItems,
@@ -99,6 +102,11 @@ function getBannedUsers(): { id: string; username: string }[] {
   return db.prepare(
     "SELECT id, username FROM users WHERE is_banned = 1 AND is_guest = 0 ORDER BY username COLLATE NOCASE ASC"
   ).all() as { id: string; username: string }[];
+}
+
+/** True for admins and moderators (the "staff" ranks). */
+function isStaff(user: User | null): boolean {
+  return !!user && (user.is_admin || user.is_moderator);
 }
 
 const app = express();
@@ -218,7 +226,7 @@ app.post("/api/admin/emoji", (req, res) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
   const user = authenticateToken(auth.slice(7));
-  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !isStaff(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const { name, image } = req.body as { name?: string; image?: string };
   if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
     res.status(400).json({ error: "Invalid emoji name (1-32 alphanumeric, underscore, hyphen)" }); return;
@@ -255,7 +263,7 @@ app.delete("/api/admin/emoji/:name", (req, res) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
   const user = authenticateToken(auth.slice(7));
-  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !isStaff(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const { name } = req.params as { name: string };
   if (!name || !/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
     res.status(400).json({ error: "Invalid emoji name" }); return;
@@ -278,6 +286,46 @@ app.get("/api/admin/banned", (req, res) => {
   const user = authenticateToken(auth.slice(7));
   if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
   res.json(getBannedUsers());
+});
+
+// --- admin: moderator management ---
+app.get("/api/admin/moderators", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  res.json(getRegisteredUsers());
+});
+
+app.post("/api/admin/moderator", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { userId } = req.body as { userId?: string };
+  if (!userId || typeof userId !== "string") {
+    res.status(400).json({ error: "Invalid user" }); return;
+  }
+  const updated = setModerator(userId, true);
+  if (!updated) {
+    res.status(400).json({ error: "Cannot promote this user." }); return;
+  }
+  syncModeratorRole(updated);
+  res.json(updated);
+});
+
+app.delete("/api/admin/moderator/:userId", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { userId } = req.params as { userId: string };
+  const updated = setModerator(userId, false);
+  if (!updated) {
+    res.status(400).json({ error: "Cannot demote this user." }); return;
+  }
+  syncModeratorRole(updated);
+  res.json(updated);
 });
 
 // Serve frontend static files in production
@@ -314,6 +362,20 @@ function getConnectedUsers(): User[] {
     }
   }
   return users;
+}
+
+/** After a role change, refresh that user's connected sockets so their UI updates live. */
+function syncModeratorRole(updated: User): void {
+  for (const [socketId, socketUser] of socketUsers.entries()) {
+    if (socketUser.id === updated.id) {
+      const refreshed = { ...socketUser, is_moderator: updated.is_moderator };
+      socketUsers.set(socketId, refreshed);
+      const targetSocket = io.sockets.sockets.get(socketId);
+      if (targetSocket) {
+        targetSocket.emit("auth:success", { user: refreshed, token: "" });
+      }
+    }
+  }
 }
 
 io.on("connection", (socket) => {
@@ -427,9 +489,19 @@ io.on("connection", (socket) => {
 
   socket.on("mod:delete", (data) => {
     const user = socketUsers.get(socket.id);
-    if (!user || !user.is_admin) return;
+    if (!user || !isStaff(user)) return;
 
-    if (deleteMessage(data.messageId)) {
+    const author = getMessageAuthor(data.messageId);
+    if (!author) return;
+
+    // Admins can delete any message. Moderators can delete messages from
+    // regular (non-staff) users, plus their own messages.
+    const canDelete =
+      user.is_admin ||
+      author.user_id === user.id ||
+      (!author.is_admin && !author.is_moderator);
+
+    if (canDelete && deleteMessage(data.messageId)) {
       io.emit("chat:delete", data.messageId);
     }
   });
@@ -439,7 +511,7 @@ io.on("connection", (socket) => {
     if (!user || !user.is_admin) return;
 
     const targetUser = getUserById(data.userId);
-    if (!targetUser || targetUser.is_admin) return;
+    if (!targetUser || targetUser.is_admin || targetUser.is_moderator) return;
 
     banUser(data.userId);
     deleteUserMessages(data.userId);
@@ -465,9 +537,9 @@ io.on("connection", (socket) => {
   });
 
   // --- playlist (admin only) ---
-  function assertAdmin(): boolean {
+  function assertCanManagePlaylist(): boolean {
     const user = socketUsers.get(socket.id);
-    if (!user || !user.is_admin) {
+    if (!user || !isStaff(user)) {
       socket.emit("playlist:error", {
         message: "You do not have permission to manage the playlist.",
       });
@@ -477,7 +549,7 @@ io.on("connection", (socket) => {
   }
 
   socket.on("playlist:add", (data) => {
-    if (!assertAdmin()) return;
+    if (!assertCanManagePlaylist()) return;
     const user = socketUsers.get(socket.id);
     const result = addPlaylistItem({ ...data, addedBy: user?.username ?? "" });
     if ("error" in result) {
@@ -488,7 +560,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("playlist:remove", (data) => {
-    if (!assertAdmin()) return;
+    if (!assertCanManagePlaylist()) return;
     const result = removePlaylistItem(data.id);
     if ("error" in result) {
       socket.emit("playlist:error", { message: result.error });
@@ -498,7 +570,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("playlist:switch", (data) => {
-    if (!assertAdmin()) return;
+    if (!assertCanManagePlaylist()) return;
     const result = switchPlaylistItem(data.id);
     if ("error" in result) {
       socket.emit("playlist:error", { message: result.error });

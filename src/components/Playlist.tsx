@@ -19,7 +19,8 @@ import type { PlaylistItem } from "../../shared/types";
 interface PlaylistProps {
   items: PlaylistItem[];
   activeItem: PlaylistItem | null;
-  isAdmin: boolean;
+  /** Staff (admin or moderator) can add/remove streams. */
+  canManage: boolean;
   error: string | null;
   onAdd: (data: { source: string; label?: string; channel?: string }) => void;
   onRemove: (id: string) => void;
@@ -34,7 +35,7 @@ interface PlaylistProps {
 export function Playlist({
   items,
   activeItem,
-  isAdmin,
+  canManage,
   error,
   onAdd,
   onRemove,
@@ -105,7 +106,7 @@ export function Playlist({
                       <Play className="h-3 w-3" />
                     </Button>
                   )}
-                  {isAdmin && !isSticky && !isActive && (
+                  {canManage && !isSticky && !isActive && (
                     <Button
                       variant="ghost"
                       size="icon-xs"
@@ -130,7 +131,7 @@ export function Playlist({
         </p>
       )}
 
-      {isAdmin && (
+      {canManage && (
         <div className="space-y-1.5 border-t border-border pt-2">
           <Label className="text-xs">Add Twitch stream</Label>
           <div className="flex gap-1.5">

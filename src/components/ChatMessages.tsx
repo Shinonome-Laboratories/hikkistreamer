@@ -6,6 +6,7 @@ import type { ChatMessage as ChatMessageType, CustomEmoji } from "../../shared/t
 interface ChatMessagesProps {
   messages: ChatMessageType[];
   isAdmin: boolean;
+  isModerator: boolean;
   currentUserId: string | null;
   hasMoreHistory: boolean;
   loadingHistory: boolean;
@@ -18,6 +19,7 @@ interface ChatMessagesProps {
 export function ChatMessages({
   messages,
   isAdmin,
+  isModerator,
   currentUserId,
   hasMoreHistory,
   loadingHistory,
@@ -102,6 +104,8 @@ export function ChatMessages({
         <ChatMessage
           key={msg.id}
           message={msg}
+          canModerate={isAdmin || isModerator}
+          canBan={isAdmin}
           isAdmin={isAdmin}
           currentUserId={currentUserId}
           onDelete={onDelete}

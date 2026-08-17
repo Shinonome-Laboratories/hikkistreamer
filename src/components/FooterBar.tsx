@@ -13,6 +13,7 @@ import { CHAT_MODE_ORDER, type ChatMode } from "@/components/TwitchChatEmbed";
 interface FooterBarProps {
   streamTitle: string;
   isAdmin: boolean;
+  isModerator: boolean;
   /** Render-prop slot for the playlist toggle (a PopoverTrigger). */
   playlistTrigger: ReactNode;
   onOpenAdminSettings: () => void;
@@ -45,6 +46,7 @@ function chatModeTooltip(mode: ChatMode): string {
 export function FooterBar({
   streamTitle,
   isAdmin,
+  isModerator,
   playlistTrigger,
   onOpenAdminSettings,
   chatMode,
@@ -57,6 +59,8 @@ export function FooterBar({
       : chatMode === "twitch"
         ? MessagesSquare
         : MessageCircle;
+
+  const canModerate = isAdmin || isModerator;
 
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-t border-border bg-card/50">
@@ -88,16 +92,16 @@ export function FooterBar({
           </Button>
         )}
         {playlistTrigger}
-        {isAdmin && (
+        {canModerate && (
           <Button
             variant="outline"
             size="xs"
             className="h-6 gap-1"
             onClick={onOpenAdminSettings}
-            title="Admin settings"
+            title={isAdmin ? "Admin settings" : "Moderator settings"}
           >
             <Settings className="h-3.5 w-3.5" />
-            Admin
+            {isAdmin ? "Admin" : "Mod"}
           </Button>
         )}
       </div>

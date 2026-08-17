@@ -99,6 +99,7 @@ export default function App() {
           <FooterBar
             streamTitle={streamTitle}
             isAdmin={user?.is_admin ?? false}
+            isModerator={user?.is_moderator ?? false}
             onOpenAdminSettings={() => setAdminSettingsOpen(true)}
             chatMode={chatMode}
             onCycleChatMode={cycleChatMode}
@@ -122,7 +123,7 @@ export default function App() {
           <Playlist
             items={playlistItems}
             activeItem={activeItem}
-            isAdmin={user?.is_admin ?? false}
+            canManage={user?.is_admin ?? user?.is_moderator ?? false}
             error={playlistError}
             onAdd={addPlaylistItem}
             onRemove={removePlaylistItem}
@@ -151,6 +152,7 @@ export default function App() {
                 <ChatMessages
                   messages={messages}
                   isAdmin={user?.is_admin ?? false}
+                  isModerator={user?.is_moderator ?? false}
                   currentUserId={user?.id ?? null}
                   hasMoreHistory={hasMoreHistory}
                   loadingHistory={loadingHistory}
@@ -177,6 +179,7 @@ export default function App() {
             <ChatMessages
               messages={messages}
               isAdmin={user?.is_admin ?? false}
+              isModerator={user?.is_moderator ?? false}
               currentUserId={user?.id ?? null}
               hasMoreHistory={hasMoreHistory}
               loadingHistory={loadingHistory}
@@ -220,10 +223,11 @@ export default function App() {
             onOpenChange={setUserListOpen}
             users={connectedUsers}
           />
-          {user.is_admin && (
+          {(user.is_admin || user.is_moderator) && (
             <AdminSettingsModal
               open={adminSettingsOpen}
               onOpenChange={setAdminSettingsOpen}
+              user={user}
               streamTitle={streamTitle}
               customEmojis={customEmojis}
             />

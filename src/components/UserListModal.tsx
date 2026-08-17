@@ -46,9 +46,11 @@ export function UserListModal({
                 className="text-sm font-medium flex items-center gap-1"
                 style={{ color: user.username_color }}
               >
-                {user.is_admin && (
+                {user.is_admin ? (
                   <Shield className="h-3 w-3 text-yellow-500" />
-                )}
+                ) : user.is_moderator ? (
+                  <Shield className="h-3 w-3 text-sky-500" />
+                ) : null}
                 {user.username}
               </span>
               {user.is_guest && (

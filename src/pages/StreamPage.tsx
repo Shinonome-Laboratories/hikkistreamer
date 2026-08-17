@@ -19,13 +19,13 @@ export default function StreamPage() {
           <h1 className="text-sm font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             {streamTitle}
           </h1>
-          {user?.is_admin && (
+          {(user?.is_admin || user?.is_moderator) && (
             <Button
               variant="ghost"
               size="icon"
               className="h-5 w-5 text-muted-foreground hover:text-foreground pointer-events-auto"
               onClick={() => setAdminSettingsOpen(true)}
-              title="Admin settings"
+              title={user.is_admin ? "Admin settings" : "Moderator settings"}
             >
               <Settings className="h-3.5 w-3.5" />
             </Button>
@@ -36,10 +36,11 @@ export default function StreamPage() {
         </p>
       </div>
 
-      {user?.is_admin && (
+      {(user?.is_admin || user?.is_moderator) && (
         <AdminSettingsModal
           open={adminSettingsOpen}
           onOpenChange={setAdminSettingsOpen}
+          user={user}
           streamTitle={streamTitle}
           customEmojis={customEmojis}
         />

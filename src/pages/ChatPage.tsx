@@ -60,6 +60,7 @@ export default function ChatPage() {
         <ChatMessages
           messages={messages}
           isAdmin={user?.is_admin ?? false}
+          isModerator={user?.is_moderator ?? false}
           currentUserId={user?.id ?? null}
           hasMoreHistory={hasMoreHistory}
           loadingHistory={loadingHistory}
@@ -100,10 +101,11 @@ export default function ChatPage() {
             onOpenChange={setUserListOpen}
             users={connectedUsers}
           />
-          {user.is_admin && (
+          {(user.is_admin || user.is_moderator) && (
             <AdminSettingsModal
               open={adminSettingsOpen}
               onOpenChange={setAdminSettingsOpen}
+              user={user}
               streamTitle={streamTitle}
               customEmojis={customEmojis}
             />

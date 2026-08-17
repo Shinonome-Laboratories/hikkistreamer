@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import db from "./db.js";
-import type { User } from "../shared/types.js";
+import type { RegisteredUser, User } from "../shared/types.js";
 
 interface DbUser {
   id: string;
@@ -9,11 +9,19 @@ interface DbUser {
   password_hash: string | null;
   is_guest: number;
   is_admin: number;
+  is_moderator: number;
   is_banned: number;
   avatar_url: string | null;
   username_color: string;
   message_color: string;
   created_at: string;
+}
+
+interface DbRegisteredUser {
+  id: string;
+  username: string;
+  is_admin: number;
+  is_moderator: number;
 }
 
 function toUser(row: DbUser): User {
@@ -22,6 +30,7 @@ function toUser(row: DbUser): User {
     username: row.username,
     is_guest: row.is_guest === 1,
     is_admin: row.is_admin === 1,
+    is_moderator: row.is_moderator === 1,
     avatar_url: row.avatar_url,
     username_color: row.username_color,
     message_color: row.message_color,
@@ -163,6 +172,33 @@ export function banUser(userId: string): boolean {
 export function unbanUser(userId: string): boolean {
   db.prepare("UPDATE users SET is_banned = 0 WHERE id = ?").run(userId);
   return true;
+}
+
+/** List all registered (non-guest) accounts for moderator management. */
+export function getRegisteredUsers(): RegisteredUser[] {
+  const rows = db.prepare(
+    "SELECT id, username, is_admin, is_moderator FROM users WHERE is_guest = 0 ORDER BY username COLLATE NOCASE ASC"
+  ).all() as DbRegisteredUser[];
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    is_admin: row.is_admin === 1,
+    is_moderator: row.is_moderator === 1,
+  }));
+}
+
+/**
+ * Promote or demote a user's moderator status. Returns the updated user, or
+ * null when the target doesn't exist, is a guest, or is an admin (admins are
+ * always staff and cannot be toggled).
+ */
+export function setModerator(userId: string, isModerator: boolean): User | null {
+  const row = db.prepare(
+    "SELECT id FROM users WHERE id = ? AND is_guest = 0 AND is_admin = 0"
+  ).get(userId) as { id: string } | undefined;
+  if (!row) return null;
+  db.prepare("UPDATE users SET is_moderator = ? WHERE id = ?").run(isModerator ? 1 : 0, userId);
+  return getUserById(userId);
 }
 
 export function isUserBanned(userId: string): boolean {

@@ -9,13 +9,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Trash2, UserX, UserCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Trash2, UserX, UserCheck, Shield } from "lucide-react";
 import { socket } from "@/lib/socket";
-import type { CustomEmoji } from "../../shared/types";
+import type { CustomEmoji, RegisteredUser, User } from "../../shared/types";
 
 interface AdminSettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  user: User;
   streamTitle: string;
   customEmojis: CustomEmoji[];
 }
@@ -368,34 +370,197 @@ function BannedUsersTab() {
   );
 }
 
+// ─── Moderators Tab (admin only) ─────────────────────────────────────────────
+function ModeratorsTab() {
+  const [users, setUsers] = useState<RegisteredUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const filteredUsers = trimmedQuery
+    ? users.filter((u) => u.username.toLowerCase().includes(trimmedQuery))
+    : users;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/moderators", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json() as RegisteredUser[];
+      setUsers(data);
+    } catch {
+      setError("Failed to load registered users.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleToggle = async (u: RegisteredUser) => {
+    setTogglingId(u.id);
+    setError(null);
+    try {
+      const promote = !u.is_moderator;
+      const res = await fetch(
+        promote
+          ? "/api/admin/moderator"
+          : `/api/admin/moderator/${encodeURIComponent(u.id)}`,
+        {
+          method: promote ? "POST" : "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: promote ? JSON.stringify({ userId: u.id }) : undefined,
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json() as { error: string };
+        throw new Error(data.error || "Failed to update moderator");
+      }
+      setUsers((prev) =>
+        prev.map((x) => (x.id === u.id ? { ...x, is_moderator: promote } : x))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Moderators can manage streams, delete regular-user messages, and manage
+          emojis. Search for a registered account to promote.
+        </p>
+        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={load} disabled={loading}>
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Refresh"}
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="h-8 text-sm"
+        placeholder="Search users to add as moderator…"
+      />
+      <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+        {filteredUsers.map((u) => (
+          <div
+            key={u.id}
+            className="flex items-center justify-between px-2 py-1.5 rounded-md bg-secondary/40"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {u.is_admin ? (
+                <Shield className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+              ) : u.is_moderator ? (
+                <Shield className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+              ) : (
+                <UserX className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              )}
+              <span className="text-sm font-medium truncate">{u.username}</span>
+              {u.is_admin && (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 shrink-0">
+                  admin
+                </Badge>
+              )}
+              {u.is_moderator && (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 shrink-0">
+                  mod
+                </Badge>
+              )}
+            </div>
+            {!u.is_admin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => handleToggle(u)}
+                disabled={togglingId === u.id}
+              >
+                {togglingId === u.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : u.is_moderator ? (
+                  "Demote"
+                ) : (
+                  "Promote"
+                )}
+              </Button>
+            )}
+          </div>
+        ))}
+        {!loading && filteredUsers.length === 0 && (
+          users.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">No registered users.</p>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">
+              No users match “{query.trim()}”.
+            </p>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Modal ──────────────────────────────────────────────────────────────
 export function AdminSettingsModal({
   open,
   onOpenChange,
+  user,
   streamTitle,
   customEmojis,
 }: AdminSettingsModalProps) {
+  const isAdmin = user.is_admin;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[520px] max-w-[95vw]">
         <DialogHeader>
-          <DialogTitle className="text-sm">Admin Settings</DialogTitle>
+          <DialogTitle className="text-sm">
+            {isAdmin ? "Admin Settings" : "Moderator Settings"}
+          </DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="stream">
+        <Tabs defaultValue={isAdmin ? "stream" : "emojis"}>
           <TabsList className="w-full">
-            <TabsTrigger value="stream" className="flex-1 text-xs">Stream</TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="stream" className="flex-1 text-xs">Stream</TabsTrigger>
+            )}
             <TabsTrigger value="emojis" className="flex-1 text-xs">Custom Emojis</TabsTrigger>
-            <TabsTrigger value="banned" className="flex-1 text-xs">Banned Users</TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="banned" className="flex-1 text-xs">Banned Users</TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="moderators" className="flex-1 text-xs">Moderators</TabsTrigger>
+            )}
           </TabsList>
-          <TabsContent value="stream">
-            <StreamTitleTab currentTitle={streamTitle} />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="stream">
+              <StreamTitleTab currentTitle={streamTitle} />
+            </TabsContent>
+          )}
           <TabsContent value="emojis">
             <CustomEmojisTab emojis={customEmojis} />
           </TabsContent>
-          <TabsContent value="banned">
-            <BannedUsersTab />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="banned">
+              <BannedUsersTab />
+            </TabsContent>
+          )}
+          {isAdmin && (
+            <TabsContent value="moderators">
+              <ModeratorsTab />
+            </TabsContent>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>

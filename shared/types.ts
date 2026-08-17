@@ -3,6 +3,7 @@ export interface User {
   username: string;
   is_guest: boolean;
   is_admin: boolean;
+  is_moderator: boolean;
   avatar_url: string | null;
   username_color: string;
   message_color: string;
@@ -21,6 +22,9 @@ export interface ChatMessage {
   username_color: string;
   message_color: string;
   is_deleted: boolean;
+  /** Author's current admin/moderator status (joined from users). */
+  author_is_admin: boolean;
+  author_is_moderator: boolean;
   created_at: string;
 }
 
@@ -49,6 +53,14 @@ export interface PlaylistItem {
 export interface BannedUser {
   id: string;
   username: string;
+}
+
+/** A registered (non-guest) account, used for admin moderator management. */
+export interface RegisteredUser {
+  id: string;
+  username: string;
+  is_admin: boolean;
+  is_moderator: boolean;
 }
 
 export interface ServerToClientEvents {
