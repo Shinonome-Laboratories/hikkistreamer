@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
+import { randomUUID } from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, "..", "data", "hikkistream.db");
@@ -63,6 +64,17 @@ db.exec(`
     url TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS playlist_items (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    label TEXT NOT NULL,
+    channel TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER DEFAULT 0,
+    added_by TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Migration: add media columns to existing messages table
@@ -78,6 +90,17 @@ if (!messageCols.some((c) => c.name === "media_type")) {
 const existingTitle = db.prepare("SELECT value FROM stream_settings WHERE key = 'title'").get();
 if (!existingTitle) {
   db.prepare("INSERT INTO stream_settings (key, value) VALUES ('title', 'hikkistream')").run();
+}
+
+// Seed the sticky hikkistream playlist item if not present. It is pinned,
+// cannot be removed, and is the active item by default.
+const existingHikkiItem = db.prepare(
+  "SELECT id FROM playlist_items WHERE source = 'hikkistream' LIMIT 1"
+).get();
+if (!existingHikkiItem) {
+  db.prepare(
+    "INSERT INTO playlist_items (id, source, label, channel, position, is_active, added_by) VALUES (?, 'hikkistream', 'hikkistream', NULL, 0, 1, 'system')"
+  ).run(randomUUID());
 }
 
 export default db;

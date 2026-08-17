@@ -6,13 +6,13 @@ import { useState } from "react";
 import { AdminSettingsModal } from "@/components/AdminSettingsModal";
 
 export default function StreamPage() {
-  const { user, streamTitle, customEmojis } = useChat();
+  const { user, streamTitle, customEmojis, activeItem } = useChat();
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
 
   return (
     <div className="group relative h-screen w-screen bg-background overflow-hidden">
       <div className="absolute inset-0">
-        <StreamPlayer />
+        <StreamPlayer activeItem={activeItem} />
       </div>
       <div className="absolute top-3 left-3 right-3 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
         <div className="flex items-center gap-2">

@@ -24,6 +24,12 @@ import {
   deleteMessage,
   deleteUserMessages,
 } from "./chat.js";
+import {
+  getPlaylistItems,
+  addPlaylistItem,
+  removePlaylistItem,
+  switchPlaylistItem,
+} from "./playlist.js";
 import db from "./db.js";
 import type {
   ServerToClientEvents,
@@ -314,6 +320,7 @@ io.on("connection", (socket) => {
   // Send current state on new connection
   socket.emit("stream:title", getStreamTitle());
   socket.emit("emojis:list", getCustomEmojis());
+  socket.emit("playlist:list", getPlaylistItems());
   socket.emit("chat:history", getRecentMessages(50));
   socket.emit("users:count", socketUsers.size);
   socket.emit("users:list", getConnectedUsers());
@@ -455,6 +462,49 @@ io.on("connection", (socket) => {
     const user = socketUsers.get(socket.id);
     if (!user || !user.is_admin) return;
     unbanUser(data.userId);
+  });
+
+  // --- playlist (admin only) ---
+  function assertAdmin(): boolean {
+    const user = socketUsers.get(socket.id);
+    if (!user || !user.is_admin) {
+      socket.emit("playlist:error", {
+        message: "You do not have permission to manage the playlist.",
+      });
+      return false;
+    }
+    return true;
+  }
+
+  socket.on("playlist:add", (data) => {
+    if (!assertAdmin()) return;
+    const user = socketUsers.get(socket.id);
+    const result = addPlaylistItem({ ...data, addedBy: user?.username ?? "" });
+    if ("error" in result) {
+      socket.emit("playlist:error", { message: result.error });
+      return;
+    }
+    io.emit("playlist:list", getPlaylistItems());
+  });
+
+  socket.on("playlist:remove", (data) => {
+    if (!assertAdmin()) return;
+    const result = removePlaylistItem(data.id);
+    if ("error" in result) {
+      socket.emit("playlist:error", { message: result.error });
+      return;
+    }
+    io.emit("playlist:list", getPlaylistItems());
+  });
+
+  socket.on("playlist:switch", (data) => {
+    if (!assertAdmin()) return;
+    const result = switchPlaylistItem(data.id);
+    if ("error" in result) {
+      socket.emit("playlist:error", { message: result.error });
+      return;
+    }
+    io.emit("playlist:list", getPlaylistItems());
   });
 
   socket.on("user:customize", (data) => {

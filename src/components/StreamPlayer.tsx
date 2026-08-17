@@ -3,6 +3,7 @@ import Plyr from "plyr";
 import "plyr/dist/plyr.css";
 import Hls from "hls.js";
 import { MediaMTXWebRTCReader } from "@/lib/whep.ts";
+import type { PlaylistItem } from "../../shared/types";
 
 type Protocol = "hls" | "webrtc";
 
@@ -292,7 +293,38 @@ function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
   );
 }
 
-export function StreamPlayer() {
+interface StreamPlayerProps {
+  /** The active playlist item; a Twitch item renders an embed instead of the hikkistream player. */
+  activeItem?: PlaylistItem | null;
+}
+
+function TwitchEmbed({ channel }: { channel: string }) {
+  // Twitch requires `parent` to match the page's hostname. This is `localhost`
+  // in dev and the deployed domain in production.
+  const parent = window.location.hostname;
+  const src =
+    `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}` +
+    `&parent=${encodeURIComponent(parent)}&autoplay=true&muted=true`;
+
+  // Match the hikkistream player's sizing: centered flex with an aspect-video
+  // box that never exceeds the available width/height.
+  return (
+    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+      <div className="relative w-full max-w-full max-h-full aspect-video bg-black">
+        <iframe
+          src={src}
+          title={`Twitch: ${channel}`}
+          className="absolute inset-0 h-full w-full border-0"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          scrolling="no"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function StreamPlayer({ activeItem = null }: StreamPlayerProps) {
   const [mode, setMode] = useState<Protocol>(readProtocol);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -307,6 +339,12 @@ export function StreamPlayer() {
   const reload = useCallback(() => {
     setReloadKey((key) => key + 1);
   }, []);
+
+  // A Twitch playlist item plays through the official Twitch embed; the
+  // hikkistream (and the default) uses the HLS/WebRTC video player below.
+  if (activeItem?.source === "twitch") {
+    return <TwitchEmbed channel={activeItem.channel ?? activeItem.label} />;
+  }
 
   // `key` forces a full teardown and re-initialization when the protocol
   // changes or a reload is requested, avoiding any stale player/connection

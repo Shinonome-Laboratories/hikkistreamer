@@ -1,15 +1,23 @@
 import { useState, useEffect } from "react";
 import { useChat } from "@/hooks/useChat";
 import { StreamPlayer } from "@/components/StreamPlayer";
+import { FooterBar } from "@/components/FooterBar";
+import { Playlist } from "@/components/Playlist";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatMessages } from "@/components/ChatMessages";
 import { ChatInput } from "@/components/ChatInput";
+import {
+  CHAT_MODE_ORDER,
+  TwitchChatEmbed,
+  type ChatMode,
+} from "@/components/TwitchChatEmbed";
 import { LoginModal } from "@/components/LoginModal";
 import { CustomizeModal } from "@/components/CustomizeModal";
 import { UserListModal } from "@/components/UserListModal";
 import { AdminSettingsModal } from "@/components/AdminSettingsModal";
 import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
+import { ListMusic } from "lucide-react";
 
 export default function App() {
   const {
@@ -22,6 +30,9 @@ export default function App() {
     loadingHistory,
     streamTitle,
     customEmojis,
+    playlistItems,
+    playlistError,
+    activeItem,
     registerUser,
     loginUser,
     guestLogin,
@@ -30,6 +41,9 @@ export default function App() {
     loadMoreHistory,
     deleteMsg,
     banUserAction,
+    addPlaylistItem,
+    removePlaylistItem,
+    switchPlaylistItem,
     requestUserList,
     customize,
     uploadAvatar,
@@ -40,6 +54,29 @@ export default function App() {
   const [userListOpen, setUserListOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [chatMode, setChatMode] = useState<ChatMode>("hikkistream");
+
+  // The active Twitch channel, or null when a Twitch stream isn't playing.
+  const twitchChannel =
+    activeItem?.source === "twitch"
+      ? (activeItem.channel ?? activeItem.label)
+      : null;
+
+  const cycleChatMode = () => {
+    setChatMode((current) => {
+      const next =
+        CHAT_MODE_ORDER[
+          (CHAT_MODE_ORDER.indexOf(current) + 1) % CHAT_MODE_ORDER.length
+        ];
+      return next;
+    });
+  };
+
+  // Fall back to the app chat whenever the Twitch stream ends or is switched away.
+  useEffect(() => {
+    if (!twitchChannel) setChatMode("hikkistream");
+  }, [twitchChannel]);
 
   // Close modal automatically once the user is authenticated
   useEffect(() => {
@@ -56,25 +93,42 @@ export default function App() {
       {/* Stream panel */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex-1 min-h-0 pt-2 pb-0 lg:pt-3 lg:pb-0">
-          <StreamPlayer />
+          <StreamPlayer activeItem={activeItem} />
         </div>
-        <div className="p-2 lg:p-3">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold text-foreground">{streamTitle}</h1>
-            {user?.is_admin && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                onClick={() => setAdminSettingsOpen(true)}
-                title="Admin settings"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">Live stream</p>
-        </div>
+        <Popover open={playlistOpen} onOpenChange={setPlaylistOpen}>
+          <FooterBar
+            streamTitle={streamTitle}
+            isAdmin={user?.is_admin ?? false}
+            onOpenAdminSettings={() => setAdminSettingsOpen(true)}
+            chatMode={chatMode}
+            onCycleChatMode={cycleChatMode}
+            twitchChannel={twitchChannel}
+            playlistTrigger={
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-6 w-6"
+                    title="Playlist"
+                    aria-label="Playlist"
+                  >
+                    <ListMusic className="h-3.5 w-3.5" />
+                  </Button>
+                }
+              />
+            }
+          />
+          <Playlist
+            items={playlistItems}
+            activeItem={activeItem}
+            isAdmin={user?.is_admin ?? false}
+            error={playlistError}
+            onAdd={addPlaylistItem}
+            onRemove={removePlaylistItem}
+            onSwitch={switchPlaylistItem}
+          />
+        </Popover>
       </div>
 
       {/* Chat panel */}
@@ -86,24 +140,60 @@ export default function App() {
           onOpenCustomize={() => setCustomizeOpen(true)}
           onLogout={logout}
         />
-        <ChatMessages
-          messages={messages}
-          isAdmin={user?.is_admin ?? false}
-          currentUserId={user?.id ?? null}
-          hasMoreHistory={hasMoreHistory}
-          loadingHistory={loadingHistory}
-          onLoadMore={loadMoreHistory}
-          onDelete={deleteMsg}
-          onBan={banUserAction}
-          customEmojis={customEmojis}
-        />
-        <ChatInput
-          onSend={sendMessage}
-          onUploadMedia={uploadMedia}
-          disabled={!user}
-          onRequestLogin={() => setLoginModalOpen(true)}
-          customEmojis={customEmojis}
-        />
+        {twitchChannel && chatMode !== "hikkistream" ? (
+          chatMode === "twitch" ? (
+            <div className="flex-1 min-h-0">
+              <TwitchChatEmbed channel={twitchChannel} />
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="h-1/2 min-h-0 flex flex-col border-b border-border">
+                <ChatMessages
+                  messages={messages}
+                  isAdmin={user?.is_admin ?? false}
+                  currentUserId={user?.id ?? null}
+                  hasMoreHistory={hasMoreHistory}
+                  loadingHistory={loadingHistory}
+                  onLoadMore={loadMoreHistory}
+                  onDelete={deleteMsg}
+                  onBan={banUserAction}
+                  customEmojis={customEmojis}
+                />
+                <ChatInput
+                  onSend={sendMessage}
+                  onUploadMedia={uploadMedia}
+                  disabled={!user}
+                  onRequestLogin={() => setLoginModalOpen(true)}
+                  customEmojis={customEmojis}
+                />
+              </div>
+              <div className="h-1/2 min-h-0">
+                <TwitchChatEmbed channel={twitchChannel} />
+              </div>
+            </div>
+          )
+        ) : (
+          <>
+            <ChatMessages
+              messages={messages}
+              isAdmin={user?.is_admin ?? false}
+              currentUserId={user?.id ?? null}
+              hasMoreHistory={hasMoreHistory}
+              loadingHistory={loadingHistory}
+              onLoadMore={loadMoreHistory}
+              onDelete={deleteMsg}
+              onBan={banUserAction}
+              customEmojis={customEmojis}
+            />
+            <ChatInput
+              onSend={sendMessage}
+              onUploadMedia={uploadMedia}
+              disabled={!user}
+              onRequestLogin={() => setLoginModalOpen(true)}
+              customEmojis={customEmojis}
+            />
+          </>
+        )}
       </div>
 
       {/* Modals */}

@@ -34,6 +34,18 @@ export interface CustomEmoji {
   url: string;
 }
 
+export type PlaylistSource = "hikkistream" | "twitch";
+
+export interface PlaylistItem {
+  id: string;
+  source: PlaylistSource;
+  label: string;
+  channel: string | null;
+  is_active: boolean;
+  added_by: string;
+  created_at: string;
+}
+
 export interface BannedUser {
   id: string;
   username: string;
@@ -50,6 +62,8 @@ export interface ServerToClientEvents {
   "mod:banned": () => void;
   "stream:title": (title: string) => void;
   "emojis:list": (emojis: CustomEmoji[]) => void;
+  "playlist:list": (items: PlaylistItem[]) => void;
+  "playlist:error": (payload: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -68,4 +82,11 @@ export interface ClientToServerEvents {
     username_color?: string;
     message_color?: string;
   }) => void;
+  "playlist:add": (data: {
+    source: string;
+    label?: string;
+    channel?: string;
+  }) => void;
+  "playlist:remove": (data: { id: string }) => void;
+  "playlist:switch": (data: { id: string }) => void;
 }

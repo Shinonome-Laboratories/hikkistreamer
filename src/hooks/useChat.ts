@@ -6,6 +6,7 @@ import type {
   AuthPayload,
   CustomEmoji,
   MediaType,
+  PlaylistItem,
 } from "../../shared/types";
 
 export interface UploadedMedia {
@@ -24,6 +25,8 @@ export function useChat() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [streamTitle, setStreamTitle] = useState("hikkistream");
   const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([]);
+  const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
+  const [playlistError, setPlaylistError] = useState<string | null>(null);
   const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -104,6 +107,14 @@ export function useChat() {
       setCustomEmojis(emojis);
     }
 
+    function onPlaylistList(items: PlaylistItem[]) {
+      setPlaylistItems(items);
+    }
+
+    function onPlaylistError(payload: { message: string }) {
+      setPlaylistError(payload.message);
+    }
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("auth:success", onAuthSuccess);
@@ -116,6 +127,8 @@ export function useChat() {
     socket.on("mod:banned", onBanned);
     socket.on("stream:title", onStreamTitle);
     socket.on("emojis:list", onEmojisList);
+    socket.on("playlist:list", onPlaylistList);
+    socket.on("playlist:error", onPlaylistError);
 
     socket.connect();
 
@@ -132,6 +145,8 @@ export function useChat() {
       socket.off("mod:banned", onBanned);
       socket.off("stream:title", onStreamTitle);
       socket.off("emojis:list", onEmojisList);
+      socket.off("playlist:list", onPlaylistList);
+      socket.off("playlist:error", onPlaylistError);
       socket.disconnect();
     };
   }, []);
@@ -235,6 +250,22 @@ export function useChat() {
     socket.emit("mod:ban", { userId });
   }, []);
 
+  const addPlaylistItem = useCallback(
+    (data: { source: string; label?: string; channel?: string }) => {
+      setPlaylistError(null);
+      socket.emit("playlist:add", data);
+    },
+    []
+  );
+
+  const removePlaylistItem = useCallback((id: string) => {
+    socket.emit("playlist:remove", { id });
+  }, []);
+
+  const switchPlaylistItem = useCallback((id: string) => {
+    socket.emit("playlist:switch", { id });
+  }, []);
+
   const requestUserList = useCallback(() => {
     socket.emit("users:request_list");
   }, []);
@@ -278,6 +309,9 @@ export function useChat() {
     socket.connect();
   }, []);
 
+  // The currently active playlist item drives the player source.
+  const activeItem = playlistItems.find((item) => item.is_active) ?? null;
+
   return {
     user,
     messages,
@@ -289,6 +323,9 @@ export function useChat() {
     loadingHistory,
     streamTitle,
     customEmojis,
+    playlistItems,
+    playlistError,
+    activeItem,
     registerUser,
     loginUser,
     guestLogin,
@@ -297,6 +334,9 @@ export function useChat() {
     loadMoreHistory,
     deleteMsg,
     banUserAction,
+    addPlaylistItem,
+    removePlaylistItem,
+    switchPlaylistItem,
     requestUserList,
     customize,
     uploadAvatar,
