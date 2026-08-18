@@ -316,9 +316,36 @@ function TwitchEmbed({ channel }: { channel: string }) {
   // Twitch requires `parent` to match the page's hostname. This is `localhost`
   // in dev and the deployed domain in production.
   const parent = window.location.hostname;
-  const src =
-    `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}` +
-    `&parent=${encodeURIComponent(parent)}&autoplay=true&muted=true`;
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Twitch's embed checks whether the element is visible when it initializes
+  // and disables autoplay ("style visibility" console warning) if the iframe
+  // loads before it has been laid out on screen. Defer setting `src` until the
+  // iframe reports real dimensions so the autoplay requirements are met.
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let disposed = false;
+    let raf = 0;
+    const tryLoad = () => {
+      const rect = iframeRef.current?.getBoundingClientRect();
+      if (disposed) {
+        return;
+      }
+      if (rect !== undefined && rect.width > 0 && rect.height > 0) {
+        setSrc(
+          `https://player.twitch.tv/?channel=${encodeURIComponent(channel)}` +
+            `&parent=${encodeURIComponent(parent)}&autoplay=true&muted=true`,
+        );
+      } else {
+        raf = requestAnimationFrame(tryLoad);
+      }
+    };
+    raf = requestAnimationFrame(tryLoad);
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [channel, parent]);
 
   // Match the hikkistream player's sizing: centered flex with an aspect-video
   // box that never exceeds the available width/height.
@@ -326,7 +353,8 @@ function TwitchEmbed({ channel }: { channel: string }) {
     <div className="w-full h-full flex items-center justify-center overflow-hidden">
       <div className="relative w-full max-w-full max-h-full aspect-video bg-black">
         <iframe
-          src={src}
+          ref={iframeRef}
+          src={src ?? undefined}
           title={`Twitch: ${channel}`}
           className="absolute inset-0 h-full w-full border-0"
           allow="autoplay; fullscreen; picture-in-picture"
