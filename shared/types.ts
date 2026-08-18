@@ -26,6 +26,11 @@ export interface ChatMessage {
   author_is_admin: boolean;
   author_is_moderator: boolean;
   created_at: string;
+  /**
+   * Present only for messages bridged from an external source (e.g. Twitch).
+   * These are broadcast live but are not persisted in the message history.
+   */
+  source?: "twitch";
 }
 
 export interface AuthPayload {
@@ -92,6 +97,8 @@ export interface ServerToClientEvents {
   "auth:success": (payload: AuthPayload) => void;
   "auth:error": (payload: { message: string }) => void;
   "chat:message": (message: ChatMessage) => void;
+  /** Live overlay-only comment (e.g. bridged Twitch chat); not in the chat sidebar/history. */
+  "comment:new": (message: ChatMessage) => void;
   "chat:history": (messages: ChatMessage[]) => void;
   "chat:delete": (messageId: string) => void;
   "users:count": (count: number) => void;

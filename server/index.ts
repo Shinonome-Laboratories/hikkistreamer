@@ -50,6 +50,7 @@ import {
   handleHeartbeat,
   shouldAutoAdvance,
 } from "./player.js";
+import { initTwitchBridge } from "./twitch.js";
 import db from "./db.js";
 import type {
   ServerToClientEvents,
@@ -100,6 +101,27 @@ const upload = multer({
     }
   },
 });
+
+// --- chat rate limiting ---
+// The comment overlay turns chat into a firehose, so cap each user's send rate.
+const CHAT_RATE_WINDOW_MS = 20_000;
+const CHAT_RATE_MAX_MESSAGES = 8;
+const chatRateMap = new Map<string, number[]>();
+
+/** Returns true when the user is still within their message rate limit. */
+function allowChatMessage(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = (chatRateMap.get(userId) ?? []).filter(
+    (t) => now - t < CHAT_RATE_WINDOW_MS
+  );
+  if (timestamps.length >= CHAT_RATE_MAX_MESSAGES) {
+    chatRateMap.set(userId, timestamps);
+    return false;
+  }
+  timestamps.push(now);
+  chatRateMap.set(userId, timestamps);
+  return true;
+}
 
 // --- settings helpers ---
 function getStreamTitle(): string {
@@ -417,6 +439,9 @@ initPlayerState(getActiveItem());
 // Sync the stream title to the active playlist item (when auto-title is on).
 syncTitleFromActiveItem();
 
+// Bridge Twitch chat into the app's chat stream when a Twitch item is active.
+const twitchBridge = initTwitchBridge(io);
+
 /**
  * Remove an item from the playlist. If it was the active item, advance to the
  * next one in the queue and start/flag its playback accordingly.
@@ -442,6 +467,8 @@ function handleItemFinished(finishedId: string): { ok: true } | { error: string 
     }
     syncTitleFromActiveItem();
   }
+  // Keep the Twitch chat bridge following whatever channel is now active.
+  twitchBridge.syncTwitchBridge();
   io.emit("playlist:list", getPlaylistItems());
   io.emit("player:state", getPlayerState());
   return { ok: true };
@@ -551,6 +578,11 @@ io.on("connection", (socket) => {
   socket.on("chat:send", (data) => {
     const user = socketUsers.get(socket.id);
     if (!user) return;
+
+    if (!allowChatMessage(user.id)) {
+      console.log(`[index] chat rate-limited ${user.username} (${user.id.slice(0, 8)})`);
+      return;
+    }
 
     // Only allow media that was uploaded through /api/upload (starts with /uploads/)
     const mediaUrl =
@@ -683,6 +715,8 @@ io.on("connection", (socket) => {
     io.emit("playlist:list", getPlaylistItems());
     io.emit("player:state", getPlayerState());
     syncTitleFromActiveItem();
+    // Keep the Twitch chat bridge following whatever channel is now active.
+    twitchBridge.syncTwitchBridge();
   });
 
   // --- synced playback control (staff only) ---
@@ -765,6 +799,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    const user = socketUsers.get(socket.id);
+    if (user) chatRateMap.delete(user.id);
     socketUsers.delete(socket.id);
     broadcastUserCount();
   });
@@ -775,6 +811,8 @@ io.on("connection", (socket) => {
 // report, which also covers the case where the reporting client disconnected).
 setInterval(() => {
   io.emit("player:state", getPlayerState());
+  // Belt-and-suspenders: keep the Twitch bridge in sync with the active item.
+  twitchBridge.syncTwitchBridge();
   if (shouldAutoAdvance()) {
     const active = getActiveItem();
     console.log(`[index] interval triggered auto-advance for "${active?.label}"`);

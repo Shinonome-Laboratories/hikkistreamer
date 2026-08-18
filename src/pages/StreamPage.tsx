@@ -3,11 +3,13 @@ import { useChat } from "@/hooks/useChat";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
 import { useState } from "react";
+import { readCommentsEnabled } from "@/lib/utils";
 import { AdminSettingsModal } from "@/components/AdminSettingsModal";
 
 export default function StreamPage() {
   const { user, streamTitle, titleFromPlaylist, customEmojis, activeItem } = useChat();
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
+  const [commentsEnabled] = useState<boolean>(readCommentsEnabled);
 
   return (
     <div className="group relative h-screen w-screen bg-background overflow-hidden">
@@ -15,6 +17,7 @@ export default function StreamPage() {
         <StreamPlayer
           activeItem={activeItem}
           canControl={!!(user?.is_admin || user?.is_moderator)}
+          commentsEnabled={commentsEnabled}
         />
       </div>
       <div className="absolute top-3 left-3 right-3 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">

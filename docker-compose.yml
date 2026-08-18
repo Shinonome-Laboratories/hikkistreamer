@@ -11,3 +11,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      # Optional: Twitch chat bridge bot account (anonymous read-only by default).
+      # - TWITCH_BOT_USERNAME=your_bot
+      # - TWITCH_BOT_OAUTH=oauth:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

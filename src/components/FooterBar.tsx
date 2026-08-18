@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   MessageCircle,
+  MessageSquare,
   MessagesSquare,
   Settings,
   Radio,
@@ -23,6 +24,10 @@ interface FooterBarProps {
   onCycleChatMode: () => void;
   /** The active Twitch channel, or null when no Twitch stream is playing. */
   twitchChannel: string | null;
+  /** Whether the niconico comments overlay is enabled. */
+  commentsEnabled: boolean;
+  /** Toggle the niconico comments overlay. */
+  onToggleComments: () => void;
 }
 
 const CHAT_MODE_LABELS: Record<ChatMode, string> = {
@@ -52,6 +57,8 @@ export function FooterBar({
   chatMode,
   onCycleChatMode,
   twitchChannel,
+  commentsEnabled,
+  onToggleComments,
 }: FooterBarProps) {
   const ChatModeIcon =
     chatMode === "split"
@@ -91,6 +98,26 @@ export function FooterBar({
             />
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="xs"
+          className="h-6 gap-1"
+          title={`Comments overlay: ${commentsEnabled ? "on" : "off"}`}
+          aria-label="Toggle comments overlay"
+          aria-pressed={commentsEnabled}
+          onClick={onToggleComments}
+        >
+          <MessageSquare
+            className={`h-3.5 w-3.5 ${
+              commentsEnabled ? "text-foreground" : "text-muted-foreground opacity-50"
+            }`}
+          />
+          <span
+            className={commentsEnabled ? "text-foreground" : "text-muted-foreground opacity-60"}
+          >
+            niconico
+          </span>
+        </Button>
         {playlistTrigger}
         {canModerate && (
           <Button

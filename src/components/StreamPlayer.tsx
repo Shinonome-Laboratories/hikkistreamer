@@ -4,6 +4,7 @@ import "plyr/dist/plyr.css";
 import Hls from "hls.js";
 import { MediaMTXWebRTCReader } from "@/lib/whep.ts";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
+import { CommentOverlay } from "@/components/CommentOverlay";
 import type { PlaylistItem } from "../../shared/types";
 
 type Protocol = "hls" | "webrtc";
@@ -307,6 +308,8 @@ interface StreamPlayerProps {
   activeItem?: PlaylistItem | null;
   /** Whether the local user can control playback (staff). Followers watch synced. */
   canControl?: boolean;
+  /** Whether niconico-style comments overlay is enabled (footer toggle). */
+  commentsEnabled?: boolean;
 }
 
 function TwitchEmbed({ channel }: { channel: string }) {
@@ -335,7 +338,11 @@ function TwitchEmbed({ channel }: { channel: string }) {
   );
 }
 
-export function StreamPlayer({ activeItem = null, canControl = true }: StreamPlayerProps) {
+export function StreamPlayer({
+  activeItem = null,
+  canControl = true,
+  commentsEnabled = true,
+}: StreamPlayerProps) {
   const [mode, setMode] = useState<Protocol>(readProtocol);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -353,27 +360,39 @@ export function StreamPlayer({ activeItem = null, canControl = true }: StreamPla
 
   // A Twitch playlist item plays through the official Twitch embed; the
   // hikkistream (and the default) uses the HLS/WebRTC video player below.
+  let variant: React.ReactNode;
   if (activeItem?.source === "twitch") {
-    return <TwitchEmbed channel={activeItem.channel ?? activeItem.label} />;
-  }
-
-  // A YouTube playlist item renders a synced Plyr player: all clients follow
-  // the server-authoritative position (staff control, followers watch).
-  if (activeItem?.source === "youtube") {
-    return (
+    variant = <TwitchEmbed channel={activeItem.channel ?? activeItem.label} />;
+  } else if (activeItem?.source === "youtube") {
+    // A YouTube item renders a synced Plyr player: all clients follow the
+    // server-authoritative position (staff control, followers watch).
+    variant = (
       <YouTubePlayer key={activeItem.id} item={activeItem} canControl={canControl} />
+    );
+  } else {
+    // `key` forces a full teardown and re-initialization when the protocol
+    // changes or a reload is requested, avoiding any stale player/connection
+    // state.
+    variant = (
+      <PlayerCore
+        key={`${mode}-${reloadKey}`}
+        mode={mode}
+        onSwitch={switchMode}
+        onReload={reload}
+      />
     );
   }
 
-  // `key` forces a full teardown and re-initialization when the protocol
-  // changes or a reload is requested, avoiding any stale player/connection
-  // state.
   return (
-    <PlayerCore
-      key={`${mode}-${reloadKey}`}
-      mode={mode}
-      onSwitch={switchMode}
-      onReload={reload}
-    />
+    <div className="relative w-full h-full">
+      {variant}
+      {/* Comments sit in a box with the same flex + aspect-video math as every
+          player variant, so they always overlay the video (not letterbox bars). */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="relative w-full max-w-full max-h-full aspect-video overflow-hidden">
+          <CommentOverlay enabled={commentsEnabled} />
+        </div>
+      </div>
+    </div>
   );
 }

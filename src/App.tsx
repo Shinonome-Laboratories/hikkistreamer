@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { FooterBar } from "@/components/FooterBar";
@@ -18,6 +18,7 @@ import { AdminSettingsModal } from "@/components/AdminSettingsModal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { ListMusic } from "lucide-react";
+import { COMMENTS_KEY, readCommentsEnabled } from "@/lib/utils";
 
 export default function App() {
   const {
@@ -57,6 +58,19 @@ export default function App() {
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>("hikkistream");
+  const [commentsEnabled, setCommentsEnabled] = useState<boolean>(readCommentsEnabled);
+
+  const toggleComments = useCallback(() => {
+    setCommentsEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COMMENTS_KEY, next ? "1" : "0");
+      } catch {
+        // Storage may be unavailable (private browsing, etc.).
+      }
+      return next;
+    });
+  }, []);
 
   // The active Twitch channel, or null when a Twitch stream isn't playing.
   const twitchChannel =
@@ -97,6 +111,7 @@ export default function App() {
           <StreamPlayer
             activeItem={activeItem}
             canControl={!!(user?.is_admin || user?.is_moderator)}
+            commentsEnabled={commentsEnabled}
           />
         </div>
         <Popover open={playlistOpen} onOpenChange={setPlaylistOpen}>
@@ -108,6 +123,8 @@ export default function App() {
             chatMode={chatMode}
             onCycleChatMode={cycleChatMode}
             twitchChannel={twitchChannel}
+            commentsEnabled={commentsEnabled}
+            onToggleComments={toggleComments}
             playlistTrigger={
               <PopoverTrigger
                 render={
