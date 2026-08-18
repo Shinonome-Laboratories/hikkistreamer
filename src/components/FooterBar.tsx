@@ -107,15 +107,19 @@ export function FooterBar({
         {twitchChannel && (
           <Button
             variant="ghost"
-            size="icon-sm"
-            className="h-6 w-6"
+            size="xs"
+            className="h-6 gap-1"
             title={chatModeTooltip(chatMode)}
-            aria-label={`Twitch chat mode: ${chatMode}`}
             onClick={onCycleChatMode}
           >
             <ChatModeIcon
               className={`h-3.5 w-3.5 ${chatMode === "twitch" ? "text-purple-500" : ""}`}
             />
+            <span
+              className={chatMode === "twitch" ? "text-purple-500" : "text-foreground"}
+            >
+              {CHAT_MODE_LABELS[chatMode]}
+            </span>
           </Button>
         )}
         {playlistTrigger}

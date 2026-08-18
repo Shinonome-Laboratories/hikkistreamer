@@ -131,12 +131,12 @@ export default function App() {
                 render={
                   <Button
                     variant="ghost"
-                    size="icon-sm"
-                    className="h-6 w-6"
+                    size="xs"
+                    className="h-6 gap-1"
                     title="Playlist"
-                    aria-label="Playlist"
                   >
                     <ListMusic className="h-3.5 w-3.5" />
+                    <span>Playlist</span>
                   </Button>
                 }
               />
