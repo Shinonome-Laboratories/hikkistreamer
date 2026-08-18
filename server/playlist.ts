@@ -169,7 +169,7 @@ export async function addPlaylistItem(data: {
     return { error: "Unsupported stream source." };
   }
 
-  const channel = normalizeTwitchChannel(data.channel ?? "");
+  const channel = normalizeTwitchChannel(data.url ?? data.channel ?? "");
   if (!channel) {
     return { error: "Paste a Twitch URL (twitch.tv)." };
   }
