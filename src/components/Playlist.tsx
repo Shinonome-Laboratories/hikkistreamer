@@ -198,9 +198,7 @@ export function Playlist({
   onSwitch,
   onReorder,
 }: PlaylistProps) {
-  const [addMode, setAddMode] = useState<"twitch" | "youtube">("twitch");
-  const [channelInput, setChannelInput] = useState("");
-  const [youtubeInput, setYoutubeInput] = useState("");
+  const [urlInput, setUrlInput] = useState("");
 
   // Optimistic local order so a drop animates smoothly before the server
   // broadcast (`playlist:list`) reconciles everyone to the same order.
@@ -232,18 +230,11 @@ export function Playlist({
     onReorder(String(active.id), newIndex);
   };
 
-  const handleAddTwitch = () => {
-    const value = channelInput.trim();
+  const handleAdd = () => {
+    const value = urlInput.trim();
     if (!value) return;
-    onAdd({ source: "twitch", channel: value });
-    setChannelInput("");
-  };
-
-  const handleAddYoutube = () => {
-    const value = youtubeInput.trim();
-    if (!value) return;
-    onAdd({ source: "youtube", url: value });
-    setYoutubeInput("");
+    onAdd({ source: "auto", url: value });
+    setUrlInput("");
   };
 
   return (
@@ -296,82 +287,28 @@ export function Playlist({
 
       {canManage && (
         <div className="space-y-1.5 border-t border-border pt-2">
-          <div className="flex border border-border rounded-md overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setAddMode("twitch")}
-              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
-                addMode === "twitch"
-                  ? "bg-primary/15 text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+          <Label className="text-xs">Add stream or video</Label>
+          <div className="flex gap-1.5">
+            <Input
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+              }}
+              className="h-7 text-xs flex-1"
+              placeholder="Paste a Twitch or YouTube URL"
+              maxLength={200}
+            />
+            <Button
+              size="sm"
+              className="h-7 gap-1"
+              onClick={handleAdd}
+              disabled={!urlInput.trim()}
             >
-              Twitch
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddMode("youtube")}
-              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
-                addMode === "youtube"
-                  ? "bg-primary/15 text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              YouTube
-            </button>
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
           </div>
-
-          {addMode === "twitch" ? (
-            <>
-              <Label className="text-xs">Add Twitch stream</Label>
-              <div className="flex gap-1.5">
-                <Input
-                  value={channelInput}
-                  onChange={(e) => setChannelInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddTwitch();
-                  }}
-                  className="h-7 text-xs flex-1"
-                  placeholder="Channel name or twitch.tv URL"
-                  maxLength={100}
-                />
-                <Button
-                  size="sm"
-                  className="h-7 gap-1"
-                  onClick={handleAddTwitch}
-                  disabled={!channelInput.trim()}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <Label className="text-xs">Add YouTube video</Label>
-              <div className="flex gap-1.5">
-                <Input
-                  value={youtubeInput}
-                  onChange={(e) => setYoutubeInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddYoutube();
-                  }}
-                  className="h-7 text-xs flex-1"
-                  placeholder="Video URL or ID"
-                  maxLength={200}
-                />
-                <Button
-                  size="sm"
-                  className="h-7 gap-1"
-                  onClick={handleAddYoutube}
-                  disabled={!youtubeInput.trim()}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add
-                </Button>
-              </div>
-            </>
-          )}
         </div>
       )}
     </PopoverContent>

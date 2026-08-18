@@ -3,14 +3,16 @@ import db from "./db.js";
 import type { PlaylistItem, PlaylistSource } from "../shared/types.js";
 
 const TWITCH_CHANNEL_RE = /^[a-z0-9_]{4,25}$/;
-const YOUTUBE_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const MAX_ITEMS = 50;
 
-/** Parse a YouTube URL or bare 11-char video ID into the canonical video ID. */
+/**
+ * Extract a YouTube video ID from a YouTube URL (youtube.com/watch?v=,
+ * /embed/, /shorts/, /live/, or youtu.be). Returns null when the input
+ * isn't a recognizable YouTube URL. Bare video IDs are not accepted.
+ */
 export function parseYoutubeId(input: string): string | null {
   const value = input.trim();
   if (!value) return null;
-  if (YOUTUBE_ID_RE.test(value)) return value;
 
   const urlMatch = value.match(
     /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
@@ -81,27 +83,38 @@ export function getActiveItem(): PlaylistItem | null {
 }
 
 /**
- * Normalize a Twitch channel input (URL or bare channel name) into a lowercase
- * channel name, or return null if it isn't a valid Twitch channel.
+ * Extract a Twitch channel name from a twitch.tv URL, lowercased, or return
+ * null when the input isn't a valid Twitch channel URL. Bare channel names
+ * are not accepted.
  */
 export function normalizeTwitchChannel(input: string): string | null {
-  let channel = input.trim();
-  if (!channel) return null;
+  const value = input.trim();
+  if (!value) return null;
 
-  // Accept full twitch.tv URLs as well as bare channel names.
-  const urlMatch = channel.match(
-    /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]+)(?:\/.*)?$/i
+  // Accept full twitch.tv URLs only (query strings/fragments allowed).
+  const urlMatch = value.match(
+    /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]+)(?:[/?#].*)?$/i
   );
-  if (urlMatch) {
-    channel = urlMatch[1];
-  }
+  if (!urlMatch) return null;
 
-  channel = channel.toLowerCase();
+  const channel = urlMatch[1].toLowerCase();
   return TWITCH_CHANNEL_RE.test(channel) ? channel : null;
 }
 
+/**
+ * Detect which playlist source a pasted URL refers to. YouTube is checked
+ * first; Twitch and YouTube URLs never overlap, so the order is cosmetic.
+ */
+export function detectPlaylistSource(
+  input: string
+): "youtube" | "twitch" | null {
+  if (parseYoutubeId(input)) return "youtube";
+  if (normalizeTwitchChannel(input)) return "twitch";
+  return null;
+}
+
 export async function addPlaylistItem(data: {
-  source: string;
+  source?: string;
   label?: string;
   channel?: string;
   url?: string;
@@ -110,10 +123,20 @@ export async function addPlaylistItem(data: {
   if (data.source === "hikkistream") {
     return { error: "hikkistream is always in the playlist." };
   }
-  if (data.source === "youtube") {
+
+  // When the client doesn't pick a source, detect it from the pasted URL.
+  const source =
+    data.source === "auto" || data.source === undefined
+      ? detectPlaylistSource(data.url ?? data.channel ?? "")
+      : data.source;
+  if (!source) {
+    return { error: "Paste a Twitch or YouTube URL." };
+  }
+
+  if (source === "youtube") {
     const videoId = parseYoutubeId(data.url ?? data.channel ?? "");
     if (!videoId) {
-      return { error: "Invalid YouTube video. Use a video URL or a video ID." };
+      return { error: "Paste a YouTube URL (youtube.com or youtu.be)." };
     }
 
     const existing = db.prepare(
@@ -142,13 +165,13 @@ export async function addPlaylistItem(data: {
     const row = db.prepare("SELECT * FROM playlist_items WHERE id = ?").get(id) as DbPlaylistItem;
     return toPlaylistItem(row);
   }
-  if (data.source !== "twitch") {
+  if (source !== "twitch") {
     return { error: "Unsupported stream source." };
   }
 
   const channel = normalizeTwitchChannel(data.channel ?? "");
   if (!channel) {
-    return { error: "Invalid Twitch channel. Use a channel name or a twitch.tv URL." };
+    return { error: "Paste a Twitch URL (twitch.tv)." };
   }
 
   const existing = db.prepare(
