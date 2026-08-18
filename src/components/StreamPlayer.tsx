@@ -5,7 +5,6 @@ import Hls from "hls.js";
 import { MediaMTXWebRTCReader } from "@/lib/whep.ts";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { CommentOverlay } from "@/components/CommentOverlay";
-import { useAspectFit } from "@/hooks/useAspectFit";
 import type { PlaylistItem } from "../../shared/types";
 
 type Protocol = "hls" | "webrtc";
@@ -107,14 +106,11 @@ interface PlayerCoreProps {
 }
 
 function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
-  // `containerRef` measures the outer sized container for the aspect fit; the
-  // media element mounts into `mediaRef`.
-  const { containerRef, maxWidth } = useAspectFit();
-  const mediaRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const container = mediaRef.current;
+    const container = containerRef.current;
     if (container === null) {
       return;
     }
@@ -294,9 +290,9 @@ function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
   }, [mode, onSwitch, onReload]);
 
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden">
-      <div className="relative w-full max-w-full aspect-video bg-black" style={{ maxWidth }}>
-        <div ref={mediaRef} className="w-full h-full" />
+    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+      <div className="relative w-full max-w-full max-h-full aspect-video bg-black">
+        <div ref={containerRef} className="w-full h-full" />
         {error !== null && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-4">
             <p className="text-sm text-white/90 text-center">{error}</p>
@@ -321,7 +317,6 @@ function TwitchEmbed({ channel }: { channel: string }) {
   // in dev and the deployed domain in production.
   const parent = window.location.hostname;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const { containerRef, maxWidth } = useAspectFit();
 
   // Twitch's embed checks whether the element is visible when it initializes
   // and disables autoplay ("style visibility" console warning) if the iframe
@@ -355,8 +350,8 @@ function TwitchEmbed({ channel }: { channel: string }) {
   // Match the hikkistream player's sizing: centered flex with an aspect-video
   // box that never exceeds the available width/height.
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden">
-      <div className="relative w-full max-w-full aspect-video bg-black" style={{ maxWidth }}>
+    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+      <div className="relative w-full max-w-full max-h-full aspect-video bg-black">
         <iframe
           ref={iframeRef}
           src={src ?? undefined}
@@ -378,10 +373,6 @@ export function StreamPlayer({
 }: StreamPlayerProps) {
   const [mode, setMode] = useState<Protocol>(readProtocol);
   const [reloadKey, setReloadKey] = useState(0);
-  // Same fit constraint as the player variants below, so the comment overlay
-  // always covers exactly the 16:9 video box.
-  const { containerRef: commentsContainerRef, maxWidth: commentsMaxWidth } =
-    useAspectFit();
 
   const switchMode = useCallback(() => {
     setMode((current) => {
@@ -421,12 +412,12 @@ export function StreamPlayer({
   }
 
   return (
-    <div className="relative w-full h-full bg-black">
+    <div className="relative w-full h-full">
       {variant}
       {/* Comments sit in a box with the same flex + aspect-video math as every
           player variant, so they always overlay the video (not letterbox bars). */}
-      <div ref={commentsContainerRef} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="relative w-full max-w-full aspect-video overflow-hidden" style={{ maxWidth: commentsMaxWidth }}>
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="relative w-full max-w-full max-h-full aspect-video overflow-hidden">
           <CommentOverlay enabled={commentsEnabled} />
         </div>
       </div>
