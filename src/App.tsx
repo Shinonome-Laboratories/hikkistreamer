@@ -145,7 +145,7 @@ export default function App() {
           <Playlist
             items={playlistItems}
             activeItem={activeItem}
-            canManage={user?.is_admin ?? user?.is_moderator ?? false}
+            canManage={!!(user?.is_admin || user?.is_moderator)}
             error={playlistError}
             onAdd={addPlaylistItem}
             onRemove={removePlaylistItem}
