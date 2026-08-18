@@ -7,6 +7,7 @@ import {
   usePlayerSync,
   type SyncPlayer,
 } from "@/hooks/usePlayerSync";
+import { useAspectFit } from "@/hooks/useAspectFit";
 import type { PlaylistItem } from "../../shared/types";
 
 const STAFF_CONTROLS = [
@@ -82,7 +83,10 @@ interface YouTubePlayerProps {
  * a slack window so the video doesn't constantly skip around.
  */
 export function YouTubePlayer({ item, canControl }: YouTubePlayerProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  // `containerRef` measures the outer sized container for the aspect fit; the
+  // embed mounts into `mediaRef`.
+  const { containerRef, maxWidth } = useAspectFit();
+  const mediaRef = useRef<HTMLDivElement | null>(null);
   const plyrRef = useRef<Plyr | null>(null);
   const durationReportedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +109,7 @@ export function YouTubePlayer({ item, canControl }: YouTubePlayerProps) {
   const videoId = item.youtube_id ?? item.channel ?? item.label;
 
   useEffect(() => {
-    const container = containerRef.current;
+    const container = mediaRef.current;
     if (container === null) return;
 
     let disposed = false;
@@ -302,9 +306,9 @@ export function YouTubePlayer({ item, canControl }: YouTubePlayerProps) {
   };
 
   return (
-    <div className="w-full h-full flex items-center justify-center overflow-hidden">
-      <div className="relative w-full max-w-full max-h-full aspect-video bg-black">
-        <div ref={containerRef} className="w-full h-full" />
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden">
+      <div className="relative w-full max-w-full aspect-video bg-black" style={{ maxWidth }}>
+        <div ref={mediaRef} className="w-full h-full" />
         {error !== null && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-4">
             <p className="text-sm text-white/90 text-center">{error}</p>
