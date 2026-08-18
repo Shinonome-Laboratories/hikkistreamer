@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   MessageCircle,
   MessageSquare,
@@ -76,12 +75,6 @@ export function FooterBar({
         <h1 className="text-sm font-semibold text-foreground truncate">
           {streamTitle}
         </h1>
-        <Badge
-          variant="secondary"
-          className="text-[10px] px-1.5 py-0 h-4 gap-1 shrink-0"
-        >
-          Live
-        </Badge>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
         <Button
