@@ -178,7 +178,7 @@ export default function App() {
         <BannerStrip banners={banners} />
         <div
           className={`flex-1 min-h-0 ${
-            footerPosition === "top" ? "pb-2 lg:pb-3" : "pt-2 lg:pt-3"
+            footerPosition === "top" ? "" : "pt-2 lg:pt-3"
           }`}
         >
           <StreamPlayer
