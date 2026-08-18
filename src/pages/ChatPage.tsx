@@ -18,6 +18,7 @@ export default function ChatPage() {
     hasMoreHistory,
     loadingHistory,
     streamTitle,
+    titleFromPlaylist,
     customEmojis,
     registerUser,
     loginUser,
@@ -107,6 +108,7 @@ export default function ChatPage() {
               onOpenChange={setAdminSettingsOpen}
               user={user}
               streamTitle={streamTitle}
+              titleFromPlaylist={titleFromPlaylist}
               customEmojis={customEmojis}
             />
           )}

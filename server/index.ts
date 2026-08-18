@@ -29,10 +29,27 @@ import {
 } from "./chat.js";
 import {
   getPlaylistItems,
+  getActiveItem,
   addPlaylistItem,
   removePlaylistItem,
   switchPlaylistItem,
+  advancePlaylist,
 } from "./playlist.js";
+import {
+  initPlayerState,
+  getPlayerState,
+  startItem,
+  setLive,
+  setStopped,
+  isCurrentItem,
+  handlePlay,
+  handlePause,
+  handleSeek,
+  handleEnded,
+  handleReady,
+  handleHeartbeat,
+  shouldAutoAdvance,
+} from "./player.js";
 import db from "./db.js";
 import type {
   ServerToClientEvents,
@@ -92,6 +109,33 @@ function getStreamTitle(): string {
 
 function setStreamTitle(title: string): void {
   db.prepare("INSERT OR REPLACE INTO stream_settings (key, value) VALUES ('title', ?)").run(title);
+}
+
+function getTitleFromPlaylist(): boolean {
+  const row = db.prepare(
+    "SELECT value FROM stream_settings WHERE key = 'title_from_playlist'"
+  ).get() as { value: string } | undefined;
+  return row?.value === "1";
+}
+
+function setTitleFromPlaylist(enabled: boolean): void {
+  db.prepare("INSERT OR REPLACE INTO stream_settings (key, value) VALUES ('title_from_playlist', ?)").run(enabled ? "1" : "0");
+}
+
+/**
+ * When the auto-title setting is on and a non-hikkistream playlist item is
+ * active, mirror its label into the stream title. The sticky hikkistream item
+ * keeps the manual/default title. No-op when the title wouldn't change.
+ */
+function syncTitleFromActiveItem(): void {
+  if (!getTitleFromPlaylist()) return;
+  const active = getActiveItem();
+  if (!active || active.source === "hikkistream") return;
+  const next = active.label.trim().slice(0, 100);
+  if (next && next !== getStreamTitle()) {
+    setStreamTitle(next);
+    io.emit("stream:title", next);
+  }
 }
 
 function getCustomEmojis(): CustomEmoji[] {
@@ -202,7 +246,11 @@ app.post("/api/upload", (req, res) => {
 
 // --- public settings endpoint ---
 app.get("/api/settings", (_req, res) => {
-  res.json({ title: getStreamTitle(), emojis: getCustomEmojis() });
+  res.json({
+    title: getStreamTitle(),
+    titleFromPlaylist: getTitleFromPlaylist(),
+    emojis: getCustomEmojis(),
+  });
 });
 
 // --- admin: set stream title ---
@@ -219,6 +267,23 @@ app.post("/api/admin/title", (req, res) => {
   setStreamTitle(clean);
   io.emit("stream:title", clean);
   res.json({ title: clean });
+});
+
+// --- admin: toggle auto-title from the active playlist item ---
+app.post("/api/admin/title-auto", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { enabled } = req.body as { enabled?: unknown };
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ error: "Invalid value" }); return;
+  }
+  setTitleFromPlaylist(enabled);
+  io.emit("stream:auto-title", enabled);
+  // Reflect the setting immediately if a non-hikkistream item is active.
+  syncTitleFromActiveItem();
+  res.json({ enabled });
 });
 
 // --- admin: upload custom emoji ---
@@ -345,6 +410,43 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   },
 });
 
+// --- synced playback state ---
+
+// Initialize the authoritative player state from the persisted active item.
+initPlayerState(getActiveItem());
+// Sync the stream title to the active playlist item (when auto-title is on).
+syncTitleFromActiveItem();
+
+/**
+ * Remove an item from the playlist. If it was the active item, advance to the
+ * next one in the queue and start/flag its playback accordingly.
+ */
+function handleItemFinished(finishedId: string): { ok: true } | { error: string } {
+  const removed = removePlaylistItem(finishedId);
+  if ("error" in removed) {
+    console.log(`[index] handleItemFinished ERROR for ${finishedId.slice(0, 8)}: ${removed.error}`);
+    return { error: removed.error };
+  }
+  console.log(
+    `[index] handleItemFinished removed "${removed.removed.label}" (${removed.removed.source}, pos ${removed.removed.position}, wasActive=${removed.removed.is_active})`
+  );
+  if (removed.removed.is_active) {
+    const next = advancePlaylist(removed.removed.position);
+    if (next) {
+      console.log(`[index] handleItemFinished -> now active "${next.label}" (${next.source})`);
+      if (next.source === "youtube") startItem(next.id);
+      else setLive(next.id);
+    } else {
+      console.log("[index] handleItemFinished -> nothing left, stopping");
+      setStopped(null);
+    }
+    syncTitleFromActiveItem();
+  }
+  io.emit("playlist:list", getPlaylistItems());
+  io.emit("player:state", getPlayerState());
+  return { ok: true };
+}
+
 // Track authenticated sockets
 const socketUsers = new Map<string, User>();
 
@@ -381,11 +483,13 @@ function syncModeratorRole(updated: User): void {
 io.on("connection", (socket) => {
   // Send current state on new connection
   socket.emit("stream:title", getStreamTitle());
+  socket.emit("stream:auto-title", getTitleFromPlaylist());
   socket.emit("emojis:list", getCustomEmojis());
   socket.emit("playlist:list", getPlaylistItems());
   socket.emit("chat:history", getRecentMessages(50));
   socket.emit("users:count", socketUsers.size);
   socket.emit("users:list", getConnectedUsers());
+  socket.emit("player:state", getPlayerState());
 
   socket.on("auth:register", (data) => {
     const result = register(data.username, data.password);
@@ -548,10 +652,10 @@ io.on("connection", (socket) => {
     return true;
   }
 
-  socket.on("playlist:add", (data) => {
+  socket.on("playlist:add", async (data) => {
     if (!assertCanManagePlaylist()) return;
     const user = socketUsers.get(socket.id);
-    const result = addPlaylistItem({ ...data, addedBy: user?.username ?? "" });
+    const result = await addPlaylistItem({ ...data, addedBy: user?.username ?? "" });
     if ("error" in result) {
       socket.emit("playlist:error", { message: result.error });
       return;
@@ -561,12 +665,10 @@ io.on("connection", (socket) => {
 
   socket.on("playlist:remove", (data) => {
     if (!assertCanManagePlaylist()) return;
-    const result = removePlaylistItem(data.id);
+    const result = handleItemFinished(data.id);
     if ("error" in result) {
       socket.emit("playlist:error", { message: result.error });
-      return;
     }
-    io.emit("playlist:list", getPlaylistItems());
   });
 
   socket.on("playlist:switch", (data) => {
@@ -576,7 +678,75 @@ io.on("connection", (socket) => {
       socket.emit("playlist:error", { message: result.error });
       return;
     }
+    if (result.source === "youtube") startItem(result.id);
+    else setLive(result.id);
     io.emit("playlist:list", getPlaylistItems());
+    io.emit("player:state", getPlayerState());
+    syncTitleFromActiveItem();
+  });
+
+  // --- synced playback control (staff only) ---
+  function assertCanControlPlayback(): boolean {
+    const user = socketUsers.get(socket.id);
+    return !!user && isStaff(user);
+  }
+
+  socket.on("player:play", (data) => {
+    if (!assertCanControlPlayback()) return;
+    if (!isCurrentItem(data.itemId)) return;
+    if (handlePlay(data.itemId, typeof data.position === "number" ? data.position : 0)) {
+      io.emit("player:state", getPlayerState());
+    }
+  });
+
+  socket.on("player:pause", (data) => {
+    if (!assertCanControlPlayback()) return;
+    if (!isCurrentItem(data.itemId)) return;
+    if (handlePause(data.itemId, typeof data.position === "number" ? data.position : 0)) {
+      io.emit("player:state", getPlayerState());
+    }
+  });
+
+  socket.on("player:seek", (data) => {
+    if (!assertCanControlPlayback()) return;
+    if (!isCurrentItem(data.itemId)) return;
+    if (handleSeek(data.itemId, typeof data.position === "number" ? data.position : 0)) {
+      io.emit("player:state", getPlayerState());
+    }
+  });
+
+  socket.on("player:ended", (data) => {
+    if (!assertCanControlPlayback()) {
+      console.log("[index] player:ended ignored (not staff)");
+      return;
+    }
+    console.log(`[index] player:ended received for id=${data.itemId.slice(0, 8)}`);
+    if (!isCurrentItem(data.itemId)) return;
+    if (!handleEnded(data.itemId)) return;
+    handleItemFinished(data.itemId);
+  });
+
+  // Duration and position reports are accepted from any authenticated user.
+  socket.on("player:ready", (data) => {
+    const user = socketUsers.get(socket.id);
+    if (!user) return;
+    if (handleReady(data.itemId, typeof data.duration === "number" ? data.duration : 0)) {
+      io.emit("player:state", getPlayerState());
+    }
+    // The video may have already ended before anyone loaded it; advance now.
+    if (shouldAutoAdvance()) {
+      const active = getActiveItem();
+      console.log(`[index] player:ready triggered auto-advance for "${active?.label}"`);
+      if (active) handleItemFinished(active.id);
+    }
+  });
+
+  socket.on("player:heartbeat", (data) => {
+    const user = socketUsers.get(socket.id);
+    if (!user) return;
+    if (handleHeartbeat(data.itemId, typeof data.position === "number" ? data.position : 0)) {
+      io.emit("player:state", getPlayerState());
+    }
   });
 
   socket.on("user:customize", (data) => {
@@ -599,6 +769,18 @@ io.on("connection", (socket) => {
     broadcastUserCount();
   });
 });
+
+// Periodically re-anchor all clients and auto-advance when the active video
+// reaches its reported duration (belt-and-suspenders to the client `ended`
+// report, which also covers the case where the reporting client disconnected).
+setInterval(() => {
+  io.emit("player:state", getPlayerState());
+  if (shouldAutoAdvance()) {
+    const active = getActiveItem();
+    console.log(`[index] interval triggered auto-advance for "${active?.label}"`);
+    if (active) handleItemFinished(active.id);
+  }
+}, 10_000);
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

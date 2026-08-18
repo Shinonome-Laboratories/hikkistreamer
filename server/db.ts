@@ -93,10 +93,25 @@ if (!userCols.some((c) => c.name === "is_moderator")) {
   db.exec("ALTER TABLE users ADD COLUMN is_moderator INTEGER DEFAULT 0");
 }
 
+// Migration: add youtube_id column to playlist_items for YouTube video items
+const playlistCols = db.prepare("PRAGMA table_info(playlist_items)").all() as { name: string }[];
+if (!playlistCols.some((c) => c.name === "youtube_id")) {
+  db.exec("ALTER TABLE playlist_items ADD COLUMN youtube_id TEXT");
+}
+
 // Seed default stream title if not set
 const existingTitle = db.prepare("SELECT value FROM stream_settings WHERE key = 'title'").get();
 if (!existingTitle) {
   db.prepare("INSERT INTO stream_settings (key, value) VALUES ('title', 'hikkistream')").run();
+}
+
+// Seed the auto-title-from-playlist toggle (default on). When enabled, the
+// stream title follows the active playlist item instead of staying manual.
+const existingAutoTitle = db.prepare(
+  "SELECT value FROM stream_settings WHERE key = 'title_from_playlist'"
+).get();
+if (!existingAutoTitle) {
+  db.prepare("INSERT INTO stream_settings (key, value) VALUES ('title_from_playlist', '1')").run();
 }
 
 // Seed the sticky hikkistream playlist item if not present. It is pinned,

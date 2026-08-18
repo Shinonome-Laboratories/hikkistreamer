@@ -7,6 +7,7 @@ import type {
   CustomEmoji,
   MediaType,
   PlaylistItem,
+  PlayerState,
 } from "../../shared/types";
 
 export interface UploadedMedia {
@@ -24,9 +25,11 @@ export function useChat() {
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [streamTitle, setStreamTitle] = useState("hikkistream");
+  const [titleFromPlaylist, setTitleFromPlaylist] = useState(true);
   const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([]);
   const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
+  const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const tokenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -103,6 +106,10 @@ export function useChat() {
       setStreamTitle(title);
     }
 
+    function onStreamAutoTitle(enabled: boolean) {
+      setTitleFromPlaylist(enabled);
+    }
+
     function onEmojisList(emojis: CustomEmoji[]) {
       setCustomEmojis(emojis);
     }
@@ -113,6 +120,10 @@ export function useChat() {
 
     function onPlaylistError(payload: { message: string }) {
       setPlaylistError(payload.message);
+    }
+
+    function onPlayerState(state: PlayerState) {
+      setPlayerState(state);
     }
 
     socket.on("connect", onConnect);
@@ -126,9 +137,11 @@ export function useChat() {
     socket.on("users:list", onUserList);
     socket.on("mod:banned", onBanned);
     socket.on("stream:title", onStreamTitle);
+    socket.on("stream:auto-title", onStreamAutoTitle);
     socket.on("emojis:list", onEmojisList);
     socket.on("playlist:list", onPlaylistList);
     socket.on("playlist:error", onPlaylistError);
+    socket.on("player:state", onPlayerState);
 
     socket.connect();
 
@@ -144,9 +157,11 @@ export function useChat() {
       socket.off("users:list", onUserList);
       socket.off("mod:banned", onBanned);
       socket.off("stream:title", onStreamTitle);
+      socket.off("stream:auto-title", onStreamAutoTitle);
       socket.off("emojis:list", onEmojisList);
       socket.off("playlist:list", onPlaylistList);
       socket.off("playlist:error", onPlaylistError);
+      socket.off("player:state", onPlayerState);
       socket.disconnect();
     };
   }, []);
@@ -251,7 +266,7 @@ export function useChat() {
   }, []);
 
   const addPlaylistItem = useCallback(
-    (data: { source: string; label?: string; channel?: string }) => {
+    (data: { source: string; label?: string; channel?: string; url?: string }) => {
       setPlaylistError(null);
       socket.emit("playlist:add", data);
     },
@@ -322,9 +337,11 @@ export function useChat() {
     hasMoreHistory,
     loadingHistory,
     streamTitle,
+    titleFromPlaylist,
     customEmojis,
     playlistItems,
     playlistError,
+    playerState,
     activeItem,
     registerUser,
     loginUser,

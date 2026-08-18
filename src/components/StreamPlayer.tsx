@@ -3,6 +3,7 @@ import Plyr from "plyr";
 import "plyr/dist/plyr.css";
 import Hls from "hls.js";
 import { MediaMTXWebRTCReader } from "@/lib/whep.ts";
+import { YouTubePlayer } from "@/components/YouTubePlayer";
 import type { PlaylistItem } from "../../shared/types";
 
 type Protocol = "hls" | "webrtc";
@@ -170,7 +171,15 @@ function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
     }
 
     const plyr = new Plyr(video, {
-      controls: ["play-large", "play", "mute", "volume", "pip", "fullscreen"],
+      controls: [
+        "play-large",
+        "play",
+        "mute",
+        "volume",
+        "captions",
+        "pip",
+        "fullscreen",
+      ],
       autoplay: true,
       clickToPlay: true,
       hideControls: true,
@@ -294,8 +303,10 @@ function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
 }
 
 interface StreamPlayerProps {
-  /** The active playlist item; a Twitch item renders an embed instead of the hikkistream player. */
+  /** The active playlist item; Twitch/YouTube items render their own embeds. */
   activeItem?: PlaylistItem | null;
+  /** Whether the local user can control playback (staff). Followers watch synced. */
+  canControl?: boolean;
 }
 
 function TwitchEmbed({ channel }: { channel: string }) {
@@ -324,7 +335,7 @@ function TwitchEmbed({ channel }: { channel: string }) {
   );
 }
 
-export function StreamPlayer({ activeItem = null }: StreamPlayerProps) {
+export function StreamPlayer({ activeItem = null, canControl = true }: StreamPlayerProps) {
   const [mode, setMode] = useState<Protocol>(readProtocol);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -344,6 +355,14 @@ export function StreamPlayer({ activeItem = null }: StreamPlayerProps) {
   // hikkistream (and the default) uses the HLS/WebRTC video player below.
   if (activeItem?.source === "twitch") {
     return <TwitchEmbed channel={activeItem.channel ?? activeItem.label} />;
+  }
+
+  // A YouTube playlist item renders a synced Plyr player: all clients follow
+  // the server-authoritative position (staff control, followers watch).
+  if (activeItem?.source === "youtube") {
+    return (
+      <YouTubePlayer key={activeItem.id} item={activeItem} canControl={canControl} />
+    );
   }
 
   // `key` forces a full teardown and re-initialization when the protocol

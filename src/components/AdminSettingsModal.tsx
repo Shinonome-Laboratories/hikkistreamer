@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, Trash2, UserX, UserCheck, Shield } from "lucide-react";
 import { socket } from "@/lib/socket";
 import type { CustomEmoji, RegisteredUser, User } from "../../shared/types";
@@ -19,6 +21,7 @@ interface AdminSettingsModalProps {
   onOpenChange: (open: boolean) => void;
   user: User;
   streamTitle: string;
+  titleFromPlaylist: boolean;
   customEmojis: CustomEmoji[];
 }
 
@@ -36,9 +39,16 @@ function getToken(): string | null {
 }
 
 // ─── Stream Title Tab ────────────────────────────────────────────────────────
-function StreamTitleTab({ currentTitle }: { currentTitle: string }) {
+function StreamTitleTab({
+  currentTitle,
+  titleFromPlaylist,
+}: {
+  currentTitle: string;
+  titleFromPlaylist: boolean;
+}) {
   const [title, setTitle] = useState(currentTitle);
   const [saving, setSaving] = useState(false);
+  const [togglingAuto, setTogglingAuto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -74,8 +84,46 @@ function StreamTitleTab({ currentTitle }: { currentTitle: string }) {
     }
   };
 
+  const handleToggleAuto = async (enabled: boolean) => {
+    setTogglingAuto(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/title-auto", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error: string };
+        throw new Error(data.error || "Failed to update setting");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setTogglingAuto(false);
+    }
+  };
+
   return (
     <div className="space-y-4 pt-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <Label className="text-xs">Auto-set from playlist</Label>
+          <p className="text-[11px] text-muted-foreground">
+            Follows the active playlist item&apos;s title (YouTube video or Twitch channel).
+          </p>
+        </div>
+        <Switch
+          checked={titleFromPlaylist}
+          onCheckedChange={(enabled) => handleToggleAuto(enabled)}
+          disabled={togglingAuto}
+          aria-label="Auto-set title from active playlist item"
+        />
+      </div>
+      <Separator />
       <div className="space-y-1.5">
         <Label className="text-xs">Stream Title</Label>
         <Input
@@ -86,6 +134,11 @@ function StreamTitleTab({ currentTitle }: { currentTitle: string }) {
           placeholder="Enter stream title…"
         />
       </div>
+      {titleFromPlaylist && (
+        <p className="text-xs text-muted-foreground">
+          This manual title is used while the hikkistream item is active or auto-title is off.
+        </p>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
       <Button
         size="sm"
@@ -519,6 +572,7 @@ export function AdminSettingsModal({
   onOpenChange,
   user,
   streamTitle,
+  titleFromPlaylist,
   customEmojis,
 }: AdminSettingsModalProps) {
   const isAdmin = user.is_admin;
@@ -545,7 +599,10 @@ export function AdminSettingsModal({
           </TabsList>
           {isAdmin && (
             <TabsContent value="stream">
-              <StreamTitleTab currentTitle={streamTitle} />
+              <StreamTitleTab
+                currentTitle={streamTitle}
+                titleFromPlaylist={titleFromPlaylist}
+              />
             </TabsContent>
           )}
           <TabsContent value="emojis">

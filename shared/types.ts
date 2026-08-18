@@ -38,16 +38,41 @@ export interface CustomEmoji {
   url: string;
 }
 
-export type PlaylistSource = "hikkistream" | "twitch";
+export type PlaylistSource = "hikkistream" | "twitch" | "youtube";
 
 export interface PlaylistItem {
   id: string;
   source: PlaylistSource;
   label: string;
   channel: string | null;
+  /** The 11-char YouTube video ID, when `source === "youtube"`. */
+  youtube_id: string | null;
+  /** Queue order (0-based). Used by the server to pick the next item. */
+  position: number;
   is_active: boolean;
   added_by: string;
   created_at: string;
+}
+
+export type PlayerStatus = "playing" | "paused" | "live" | "stopped";
+
+/**
+ * Authoritative playback state broadcast by the server. Clients compute their
+ * desired position from `position` + elapsed time since `at`, and only correct
+ * when the drift exceeds the sync slack so playback doesn't constantly skip.
+ */
+export interface PlayerState {
+  /** The active playlist item this state applies to (or null when idle). */
+  itemId: string | null;
+  status: PlayerStatus;
+  /** Playback position in seconds, as measured at `at`. */
+  position: number;
+  /** Server epoch (ms) at which `position` was measured. */
+  at: number;
+  /** Playback rate (reserved; always 1 for now). */
+  speed: number;
+  /** Known video duration in seconds, if it has been reported. */
+  duration: number | null;
 }
 
 export interface BannedUser {
@@ -73,9 +98,12 @@ export interface ServerToClientEvents {
   "users:list": (users: User[]) => void;
   "mod:banned": () => void;
   "stream:title": (title: string) => void;
+  /** Whether the stream title auto-follows the active playlist item. */
+  "stream:auto-title": (enabled: boolean) => void;
   "emojis:list": (emojis: CustomEmoji[]) => void;
   "playlist:list": (items: PlaylistItem[]) => void;
   "playlist:error": (payload: { message: string }) => void;
+  "player:state": (state: PlayerState) => void;
 }
 
 export interface ClientToServerEvents {
@@ -98,7 +126,17 @@ export interface ClientToServerEvents {
     source: string;
     label?: string;
     channel?: string;
+    /** Raw YouTube URL or video ID, when `source === "youtube"`. */
+    url?: string;
   }) => void;
   "playlist:remove": (data: { id: string }) => void;
   "playlist:switch": (data: { id: string }) => void;
+  // Synced YouTube playback. Control events (play/pause/seek/ended) are
+  // staff-only server-side; ready/heartbeat reports are accepted from anyone.
+  "player:play": (data: { itemId: string; position: number }) => void;
+  "player:pause": (data: { itemId: string; position: number }) => void;
+  "player:seek": (data: { itemId: string; position: number }) => void;
+  "player:ended": (data: { itemId: string }) => void;
+  "player:ready": (data: { itemId: string; duration: number }) => void;
+  "player:heartbeat": (data: { itemId: string; position: number }) => void;
 }

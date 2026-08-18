@@ -13,6 +13,7 @@ import {
   Plus,
   Radio,
   AlertCircle,
+  PlaySquare,
 } from "lucide-react";
 import type { PlaylistItem } from "../../shared/types";
 
@@ -22,7 +23,12 @@ interface PlaylistProps {
   /** Staff (admin or moderator) can add/remove streams. */
   canManage: boolean;
   error: string | null;
-  onAdd: (data: { source: string; label?: string; channel?: string }) => void;
+  onAdd: (data: {
+    source: string;
+    label?: string;
+    channel?: string;
+    url?: string;
+  }) => void;
   onRemove: (id: string) => void;
   onSwitch: (id: string) => void;
 }
@@ -41,13 +47,22 @@ export function Playlist({
   onRemove,
   onSwitch,
 }: PlaylistProps) {
+  const [addMode, setAddMode] = useState<"twitch" | "youtube">("twitch");
   const [channelInput, setChannelInput] = useState("");
+  const [youtubeInput, setYoutubeInput] = useState("");
 
-  const handleAdd = () => {
+  const handleAddTwitch = () => {
     const value = channelInput.trim();
     if (!value) return;
     onAdd({ source: "twitch", channel: value });
     setChannelInput("");
+  };
+
+  const handleAddYoutube = () => {
+    const value = youtubeInput.trim();
+    if (!value) return;
+    onAdd({ source: "youtube", url: value });
+    setYoutubeInput("");
   };
 
   return (
@@ -65,6 +80,8 @@ export function Playlist({
           {items.map((item) => {
             const isActive = activeItem?.id === item.id;
             const isSticky = item.source === "hikkistream";
+            const isYoutube = item.source === "youtube";
+            const youtubeId = item.youtube_id ?? item.label;
             return (
               <div
                 key={item.id}
@@ -72,6 +89,14 @@ export function Playlist({
                   isActive ? "bg-primary/10 ring-1 ring-primary/30" : "bg-secondary/30"
                 }`}
               >
+                {isYoutube && (
+                  <img
+                    src={`https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg`}
+                    alt=""
+                    className="h-7 w-11 shrink-0 rounded object-cover bg-black/40"
+                    loading="lazy"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate font-medium text-foreground">
@@ -87,10 +112,15 @@ export function Playlist({
                         sticky
                       </Badge>
                     )}
+                    {isYoutube && (
+                      <PlaySquare className="h-3 w-3 text-red-500 shrink-0" />
+                    )}
                   </div>
                   {!isSticky && (
                     <p className="text-[10px] text-muted-foreground truncate">
-                      twitch.tv/{item.channel ?? item.label}
+                      {isYoutube
+                        ? `youtube.com/watch?v=${youtubeId}`
+                        : `twitch.tv/${item.channel ?? item.label}`}
                     </p>
                   )}
                 </div>
@@ -106,13 +136,15 @@ export function Playlist({
                       <Play className="h-3 w-3" />
                     </Button>
                   )}
-                  {canManage && !isSticky && !isActive && (
+                  {canManage && !isSticky && (
                     <Button
                       variant="ghost"
                       size="icon-xs"
                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
                       onClick={() => onRemove(item.id)}
-                      title="Remove from playlist"
+                      title={
+                        isActive ? "Remove and play next" : "Remove from playlist"
+                      }
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -133,28 +165,82 @@ export function Playlist({
 
       {canManage && (
         <div className="space-y-1.5 border-t border-border pt-2">
-          <Label className="text-xs">Add Twitch stream</Label>
-          <div className="flex gap-1.5">
-            <Input
-              value={channelInput}
-              onChange={(e) => setChannelInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAdd();
-              }}
-              className="h-7 text-xs flex-1"
-              placeholder="Channel name or twitch.tv URL"
-              maxLength={100}
-            />
-            <Button
-              size="sm"
-              className="h-7 gap-1"
-              onClick={handleAdd}
-              disabled={!channelInput.trim()}
+          <div className="flex border border-border rounded-md overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setAddMode("twitch")}
+              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                addMode === "twitch"
+                  ? "bg-primary/15 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </Button>
+              Twitch
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddMode("youtube")}
+              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                addMode === "youtube"
+                  ? "bg-primary/15 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              YouTube
+            </button>
           </div>
+
+          {addMode === "twitch" ? (
+            <>
+              <Label className="text-xs">Add Twitch stream</Label>
+              <div className="flex gap-1.5">
+                <Input
+                  value={channelInput}
+                  onChange={(e) => setChannelInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddTwitch();
+                  }}
+                  className="h-7 text-xs flex-1"
+                  placeholder="Channel name or twitch.tv URL"
+                  maxLength={100}
+                />
+                <Button
+                  size="sm"
+                  className="h-7 gap-1"
+                  onClick={handleAddTwitch}
+                  disabled={!channelInput.trim()}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Label className="text-xs">Add YouTube video</Label>
+              <div className="flex gap-1.5">
+                <Input
+                  value={youtubeInput}
+                  onChange={(e) => setYoutubeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddYoutube();
+                  }}
+                  className="h-7 text-xs flex-1"
+                  placeholder="Video URL or ID"
+                  maxLength={200}
+                />
+                <Button
+                  size="sm"
+                  className="h-7 gap-1"
+                  onClick={handleAddYoutube}
+                  disabled={!youtubeInput.trim()}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </PopoverContent>

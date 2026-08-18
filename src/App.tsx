@@ -29,6 +29,7 @@ export default function App() {
     hasMoreHistory,
     loadingHistory,
     streamTitle,
+    titleFromPlaylist,
     customEmojis,
     playlistItems,
     playlistError,
@@ -93,7 +94,10 @@ export default function App() {
       {/* Stream panel */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex-1 min-h-0 pt-2 pb-0 lg:pt-3 lg:pb-0">
-          <StreamPlayer activeItem={activeItem} />
+          <StreamPlayer
+            activeItem={activeItem}
+            canControl={!!(user?.is_admin || user?.is_moderator)}
+          />
         </div>
         <Popover open={playlistOpen} onOpenChange={setPlaylistOpen}>
           <FooterBar
@@ -229,6 +233,7 @@ export default function App() {
               onOpenChange={setAdminSettingsOpen}
               user={user}
               streamTitle={streamTitle}
+              titleFromPlaylist={titleFromPlaylist}
               customEmojis={customEmojis}
             />
           )}
