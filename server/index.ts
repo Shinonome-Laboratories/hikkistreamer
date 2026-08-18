@@ -286,12 +286,12 @@ app.get("/api/settings", (_req, res) => {
   });
 });
 
-// --- admin: set stream title ---
+// --- admin/mod: set stream title ---
 app.post("/api/admin/title", (req, res) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
   const user = authenticateToken(auth.slice(7));
-  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !isStaff(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const { title } = req.body as { title?: string };
   if (!title || typeof title !== "string" || !title.trim()) {
     res.status(400).json({ error: "Invalid title" }); return;
@@ -302,12 +302,12 @@ app.post("/api/admin/title", (req, res) => {
   res.json({ title: clean });
 });
 
-// --- admin: toggle auto-title from the active playlist item ---
+// --- admin/mod: toggle auto-title from the active playlist item ---
 app.post("/api/admin/title-auto", (req, res) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
   const user = authenticateToken(auth.slice(7));
-  if (!user || !user.is_admin) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!user || !isStaff(user)) { res.status(403).json({ error: "Forbidden" }); return; }
   const { enabled } = req.body as { enabled?: unknown };
   if (typeof enabled !== "boolean") {
     res.status(400).json({ error: "Invalid value" }); return;

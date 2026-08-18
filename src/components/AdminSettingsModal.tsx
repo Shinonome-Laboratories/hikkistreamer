@@ -743,6 +743,7 @@ export function AdminSettingsModal({
   banners,
 }: AdminSettingsModalProps) {
   const isAdmin = user.is_admin;
+  const isStaff = user.is_admin || user.is_moderator;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[720px] max-w-[95vw] sm:max-w-[720px] min-h-[560px] max-h-[90vh] overflow-hidden flex flex-col">
@@ -752,12 +753,12 @@ export function AdminSettingsModal({
           </DialogTitle>
         </DialogHeader>
         <Tabs
-          defaultValue={isAdmin ? "stream" : "emojis"}
+          defaultValue={isStaff ? "stream" : "emojis"}
           orientation="vertical"
           className="min-h-0 flex-1"
         >
           <TabsList variant="line" className="w-40 shrink-0 flex-col items-stretch">
-            {isAdmin && (
+            {isStaff && (
               <TabsTrigger value="stream" className="justify-start gap-2 px-2 text-xs">
                 <Radio className="h-4 w-4 shrink-0" />
                 Stream
@@ -784,7 +785,7 @@ export function AdminSettingsModal({
               </TabsTrigger>
             )}
           </TabsList>
-          {isAdmin && (
+          {isStaff && (
             <TabsContent value="stream" className="min-h-0 flex-1 overflow-y-auto pr-1">
               <StreamTitleTab
                 currentTitle={streamTitle}
