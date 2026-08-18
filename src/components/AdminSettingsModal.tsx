@@ -12,7 +12,18 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Trash2, UserX, UserCheck, Shield } from "lucide-react";
+import {
+  Ban,
+  Image,
+  Loader2,
+  Radio,
+  Shield,
+  ShieldCheck,
+  Smile,
+  Trash2,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 import { socket } from "@/lib/socket";
 import type { Banner, CustomEmoji, RegisteredUser, User } from "../../shared/types";
 
@@ -734,47 +745,66 @@ export function AdminSettingsModal({
   const isAdmin = user.is_admin;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[520px] max-w-[95vw]">
-        <DialogHeader>
+      <DialogContent className="w-[720px] max-w-[95vw] sm:max-w-[720px] min-h-[560px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-sm">
             {isAdmin ? "Admin Settings" : "Moderator Settings"}
           </DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue={isAdmin ? "stream" : "emojis"}>
-          <TabsList className="w-full">
+        <Tabs
+          defaultValue={isAdmin ? "stream" : "emojis"}
+          orientation="vertical"
+          className="min-h-0 flex-1"
+        >
+          <TabsList variant="line" className="w-40 shrink-0 flex-col items-stretch">
             {isAdmin && (
-              <TabsTrigger value="stream" className="flex-1 text-xs">Stream</TabsTrigger>
+              <TabsTrigger value="stream" className="justify-start gap-2 px-2 text-xs">
+                <Radio className="h-4 w-4 shrink-0" />
+                Stream
+              </TabsTrigger>
             )}
-            <TabsTrigger value="emojis" className="flex-1 text-xs">Custom Emojis</TabsTrigger>
-            <TabsTrigger value="banners" className="flex-1 text-xs">Banners</TabsTrigger>
+            <TabsTrigger value="emojis" className="justify-start gap-2 px-2 text-xs">
+              <Smile className="h-4 w-4 shrink-0" />
+              Custom Emojis
+            </TabsTrigger>
+            <TabsTrigger value="banners" className="justify-start gap-2 px-2 text-xs">
+              <Image className="h-4 w-4 shrink-0" />
+              Banners
+            </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger value="banned" className="flex-1 text-xs">Banned Users</TabsTrigger>
+              <TabsTrigger value="banned" className="justify-start gap-2 px-2 text-xs">
+                <Ban className="h-4 w-4 shrink-0" />
+                Banned Users
+              </TabsTrigger>
             )}
             {isAdmin && (
-              <TabsTrigger value="moderators" className="flex-1 text-xs">Moderators</TabsTrigger>
+              <TabsTrigger value="moderators" className="justify-start gap-2 px-2 text-xs">
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+                Moderators
+              </TabsTrigger>
             )}
           </TabsList>
           {isAdmin && (
-            <TabsContent value="stream">
+            <TabsContent value="stream" className="min-h-0 flex-1 overflow-y-auto pr-1">
               <StreamTitleTab
                 currentTitle={streamTitle}
                 titleFromPlaylist={titleFromPlaylist}
               />
             </TabsContent>
           )}
-          <TabsContent value="emojis">
+          <TabsContent value="emojis" className="min-h-0 flex-1 overflow-y-auto pr-1">
             <CustomEmojisTab emojis={customEmojis} />
           </TabsContent>
-          <TabsContent value="banners">
+          <TabsContent value="banners" className="min-h-0 flex-1 overflow-y-auto pr-1">
             <BannersTab banners={banners} />
           </TabsContent>
           {isAdmin && (
-            <TabsContent value="banned">
+            <TabsContent value="banned" className="min-h-0 flex-1 overflow-y-auto pr-1">
               <BannedUsersTab />
             </TabsContent>
           )}
           {isAdmin && (
-            <TabsContent value="moderators">
+            <TabsContent value="moderators" className="min-h-0 flex-1 overflow-y-auto pr-1">
               <ModeratorsTab />
             </TabsContent>
           )}
