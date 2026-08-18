@@ -84,20 +84,6 @@ export function FooterBar({
         </Badge>
       </div>
       <div className="flex items-center gap-0.5 shrink-0">
-        {twitchChannel && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="h-6 w-6"
-            title={chatModeTooltip(chatMode)}
-            aria-label={`Twitch chat mode: ${chatMode}`}
-            onClick={onCycleChatMode}
-          >
-            <ChatModeIcon
-              className={`h-3.5 w-3.5 ${chatMode === "twitch" ? "text-purple-500" : ""}`}
-            />
-          </Button>
-        )}
         <Button
           variant="outline"
           size="xs"
@@ -118,6 +104,20 @@ export function FooterBar({
             niconico
           </span>
         </Button>
+        {twitchChannel && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-6 w-6"
+            title={chatModeTooltip(chatMode)}
+            aria-label={`Twitch chat mode: ${chatMode}`}
+            onClick={onCycleChatMode}
+          >
+            <ChatModeIcon
+              className={`h-3.5 w-3.5 ${chatMode === "twitch" ? "text-purple-500" : ""}`}
+            />
+          </Button>
+        )}
         {playlistTrigger}
         {canModerate && (
           <Button

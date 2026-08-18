@@ -46,6 +46,7 @@ export default function App() {
     addPlaylistItem,
     removePlaylistItem,
     switchPlaylistItem,
+    reorderPlaylistItem,
     requestUserList,
     customize,
     uploadAvatar,
@@ -149,6 +150,7 @@ export default function App() {
             onAdd={addPlaylistItem}
             onRemove={removePlaylistItem}
             onSwitch={switchPlaylistItem}
+            onReorder={reorderPlaylistItem}
           />
         </Popover>
       </div>

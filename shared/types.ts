@@ -138,6 +138,8 @@ export interface ClientToServerEvents {
   }) => void;
   "playlist:remove": (data: { id: string }) => void;
   "playlist:switch": (data: { id: string }) => void;
+  /** Move an item to a new 0-based queue position. Staff-only. */
+  "playlist:reorder": (data: { id: string; position: number }) => void;
   // Synced YouTube playback. Control events (play/pause/seek/ended) are
   // staff-only server-side; ready/heartbeat reports are accepted from anyone.
   "player:play": (data: { itemId: string; position: number }) => void;

@@ -34,6 +34,7 @@ import {
   removePlaylistItem,
   switchPlaylistItem,
   advancePlaylist,
+  reorderPlaylistItem,
 } from "./playlist.js";
 import {
   initPlayerState,
@@ -717,6 +718,23 @@ io.on("connection", (socket) => {
     syncTitleFromActiveItem();
     // Keep the Twitch chat bridge following whatever channel is now active.
     twitchBridge.syncTwitchBridge();
+  });
+
+  socket.on("playlist:reorder", (data) => {
+    if (!assertCanManagePlaylist()) return;
+    if (
+      typeof data?.id !== "string" ||
+      typeof data?.position !== "number" ||
+      !Number.isFinite(data.position)
+    ) {
+      return;
+    }
+    const result = reorderPlaylistItem(data.id, data.position);
+    if ("error" in result) {
+      socket.emit("playlist:error", { message: result.error });
+      return;
+    }
+    io.emit("playlist:list", getPlaylistItems());
   });
 
   // --- synced playback control (staff only) ---

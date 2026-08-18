@@ -281,6 +281,10 @@ export function useChat() {
     socket.emit("playlist:switch", { id });
   }, []);
 
+  const reorderPlaylistItem = useCallback((id: string, position: number) => {
+    socket.emit("playlist:reorder", { id, position });
+  }, []);
+
   const requestUserList = useCallback(() => {
     socket.emit("users:request_list");
   }, []);
@@ -354,6 +358,7 @@ export function useChat() {
     addPlaylistItem,
     removePlaylistItem,
     switchPlaylistItem,
+    reorderPlaylistItem,
     requestUserList,
     customize,
     uploadAvatar,

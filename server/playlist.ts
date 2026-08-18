@@ -236,3 +236,48 @@ export function switchPlaylistItem(id: string): PlaylistItem | { error: string }
   const updated = db.prepare("SELECT * FROM playlist_items WHERE id = ?").get(id) as DbPlaylistItem;
   return toPlaylistItem(updated);
 }
+
+/**
+ * Move an item to a new queue position (0-based index within the current
+ * ordered list) and renumber every item's `position` so the order stays
+ * contiguous. The sticky hikkistream item is pinned to position 0 and cannot
+ * be moved. Reordering never changes which item is active.
+ */
+export function reorderPlaylistItem(
+  id: string,
+  targetPosition: number
+): { ok: true } | { error: string } {
+  const items = getPlaylistItems();
+  const item = items.find((row) => row.id === id);
+  if (!item) {
+    return { error: "Item not found." };
+  }
+  if (item.source === "hikkistream") {
+    return { error: "hikkistream is pinned to the top and cannot be reordered." };
+  }
+
+  const from = items.findIndex((row) => row.id === id);
+  let to = Number.isFinite(targetPosition) ? Math.trunc(targetPosition) : from;
+  to = Math.max(0, Math.min(items.length - 1, to));
+  // Keep the sticky hikkistream item at the very front of the queue.
+  if (items[0]?.source === "hikkistream") {
+    to = Math.max(1, to);
+  }
+  if (to === from) return { ok: true };
+
+  const [moved] = items.splice(from, 1);
+  items.splice(to, 0, moved);
+
+  console.log(
+    `[playlist] reorder "${moved.label}" (${moved.source}) ${from} -> ${to} | ` +
+      items.map((row, i) => `${row.label}@${i}`).join(", ")
+  );
+
+  const renumber = db.transaction(() => {
+    for (let i = 0; i < items.length; i++) {
+      db.prepare("UPDATE playlist_items SET position = ? WHERE id = ?").run(i, items[i].id);
+    }
+  });
+  renumber();
+  return { ok: true };
+}
