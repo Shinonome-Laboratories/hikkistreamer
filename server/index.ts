@@ -52,6 +52,8 @@ import {
   shouldAutoAdvance,
 } from "./player.js";
 import { initTwitchBridge } from "./twitch.js";
+import { initDiscordBridge, BRIDGE_USER_ID } from "./discord.js";
+import { getConfig } from "./config.js";
 import db from "./db.js";
 import type {
   ServerToClientEvents,
@@ -443,6 +445,9 @@ syncTitleFromActiveItem();
 // Bridge Twitch chat into the app's chat stream when a Twitch item is active.
 const twitchBridge = initTwitchBridge(io);
 
+// Bridge chat with a configured Discord channel (optional, config-driven).
+const discordBridge = initDiscordBridge(io, getConfig());
+
 /**
  * Remove an item from the playlist. If it was the active item, advance to the
  * next one in the queue and start/flag its playback accordingly.
@@ -607,6 +612,7 @@ io.on("connection", (socket) => {
     );
     if (message) {
       io.emit("chat:message", message);
+      discordBridge.sendToDiscord(message);
     }
   });
 
@@ -649,6 +655,8 @@ io.on("connection", (socket) => {
 
     const targetUser = getUserById(data.userId);
     if (!targetUser || targetUser.is_admin || targetUser.is_moderator) return;
+    // The synthetic Discord bridge user is not a real person; never ban it.
+    if (targetUser.id === BRIDGE_USER_ID) return;
 
     banUser(data.userId);
     deleteUserMessages(data.userId);

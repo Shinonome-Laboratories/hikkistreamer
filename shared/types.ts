@@ -27,10 +27,11 @@ export interface ChatMessage {
   author_is_moderator: boolean;
   created_at: string;
   /**
-   * Present only for messages bridged from an external source (e.g. Twitch).
-   * These are broadcast live but are not persisted in the message history.
+   * Present only for messages bridged from an external source (e.g. Twitch,
+   * Discord). Twitch-sourced messages are broadcast live but not persisted;
+   * Discord-sourced messages are persisted in the message history.
    */
-  source?: "twitch";
+  source?: "twitch" | "discord";
 }
 
 export interface AuthPayload {

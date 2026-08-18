@@ -1,0 +1,9 @@
+{
+  "publicUrl": "http://localhost:3001",
+  "discord": {
+    "enabled": false,
+    "botToken": "",
+    "channelId": "",
+    "webhookUrl": ""
+  }
+}
