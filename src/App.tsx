@@ -18,7 +18,13 @@ import { AdminSettingsModal } from "@/components/AdminSettingsModal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { ListMusic } from "lucide-react";
-import { COMMENTS_KEY, readCommentsEnabled } from "@/lib/utils";
+import {
+  COMMENTS_KEY,
+  FOOTER_POSITION_KEY,
+  readCommentsEnabled,
+  readFooterPosition,
+  type FooterPosition,
+} from "@/lib/utils";
 
 export default function App() {
   const {
@@ -60,12 +66,25 @@ export default function App() {
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>("hikkistream");
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(readCommentsEnabled);
+  const [footerPosition, setFooterPosition] = useState<FooterPosition>(readFooterPosition);
 
   const toggleComments = useCallback(() => {
     setCommentsEnabled((prev) => {
       const next = !prev;
       try {
         localStorage.setItem(COMMENTS_KEY, next ? "1" : "0");
+      } catch {
+        // Storage may be unavailable (private browsing, etc.).
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleFooterPosition = useCallback(() => {
+    setFooterPosition((prev) => {
+      const next = prev === "top" ? "bottom" : "top";
+      try {
+        localStorage.setItem(FOOTER_POSITION_KEY, next);
       } catch {
         // Storage may be unavailable (private browsing, etc.).
       }
@@ -104,55 +123,68 @@ export default function App() {
     setUserListOpen(true);
   };
 
+  // Footer bar + playlist popover; rendered above the video when the footer
+  // position is "top", below it when "bottom".
+  const footer = (
+    <Popover open={playlistOpen} onOpenChange={setPlaylistOpen}>
+      <FooterBar
+        streamTitle={streamTitle}
+        isAdmin={user?.is_admin ?? false}
+        isModerator={user?.is_moderator ?? false}
+        onOpenAdminSettings={() => setAdminSettingsOpen(true)}
+        chatMode={chatMode}
+        onCycleChatMode={cycleChatMode}
+        twitchChannel={twitchChannel}
+        commentsEnabled={commentsEnabled}
+        onToggleComments={toggleComments}
+        footerPosition={footerPosition}
+        onToggleFooterPosition={toggleFooterPosition}
+        playlistTrigger={
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-6 gap-1"
+                title="Playlist"
+              >
+                <ListMusic className="h-3.5 w-3.5" />
+                <span>Playlist</span>
+              </Button>
+            }
+          />
+        }
+      />
+      <Playlist
+        items={playlistItems}
+        activeItem={activeItem}
+        canManage={!!(user?.is_admin || user?.is_moderator)}
+        error={playlistError}
+        onAdd={addPlaylistItem}
+        onRemove={removePlaylistItem}
+        onSwitch={switchPlaylistItem}
+        onReorder={reorderPlaylistItem}
+      />
+    </Popover>
+  );
+
   return (
     <div className="h-screen w-screen flex flex-col lg:flex-row bg-background overflow-hidden">
       {/* Stream panel */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex-1 min-h-0 pt-2 pb-0 lg:pt-3 lg:pb-0">
+        {footerPosition === "top" && footer}
+        <div
+          className={`flex-1 min-h-0 ${
+            footerPosition === "top" ? "pb-2 lg:pb-3" : "pt-2 lg:pt-3"
+          }`}
+        >
           <StreamPlayer
             activeItem={activeItem}
             canControl={!!(user?.is_admin || user?.is_moderator)}
             commentsEnabled={commentsEnabled}
           />
         </div>
-        <Popover open={playlistOpen} onOpenChange={setPlaylistOpen}>
-          <FooterBar
-            streamTitle={streamTitle}
-            isAdmin={user?.is_admin ?? false}
-            isModerator={user?.is_moderator ?? false}
-            onOpenAdminSettings={() => setAdminSettingsOpen(true)}
-            chatMode={chatMode}
-            onCycleChatMode={cycleChatMode}
-            twitchChannel={twitchChannel}
-            commentsEnabled={commentsEnabled}
-            onToggleComments={toggleComments}
-            playlistTrigger={
-              <PopoverTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="h-6 gap-1"
-                    title="Playlist"
-                  >
-                    <ListMusic className="h-3.5 w-3.5" />
-                    <span>Playlist</span>
-                  </Button>
-                }
-              />
-            }
-          />
-          <Playlist
-            items={playlistItems}
-            activeItem={activeItem}
-            canManage={!!(user?.is_admin || user?.is_moderator)}
-            error={playlistError}
-            onAdd={addPlaylistItem}
-            onRemove={removePlaylistItem}
-            onSwitch={switchPlaylistItem}
-            onReorder={reorderPlaylistItem}
-          />
-        </Popover>
+        {footerPosition === "bottom" && footer}
       </div>
 
       {/* Chat panel */}

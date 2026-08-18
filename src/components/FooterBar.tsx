@@ -3,12 +3,15 @@ import {
   MessageCircle,
   MessageSquare,
   MessagesSquare,
+  PanelBottom,
+  PanelTop,
   Settings,
   Radio,
   SquareSplitHorizontal,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CHAT_MODE_ORDER, type ChatMode } from "@/components/TwitchChatEmbed";
+import type { FooterPosition } from "@/lib/utils";
 
 interface FooterBarProps {
   streamTitle: string;
@@ -27,6 +30,10 @@ interface FooterBarProps {
   commentsEnabled: boolean;
   /** Toggle the niconico comments overlay. */
   onToggleComments: () => void;
+  /** Current footer position: below or above the video. */
+  footerPosition: FooterPosition;
+  /** Move the footer to the opposite position (top ↔ bottom). */
+  onToggleFooterPosition: () => void;
 }
 
 const CHAT_MODE_LABELS: Record<ChatMode, string> = {
@@ -40,6 +47,12 @@ function chatModeTooltip(mode: ChatMode): string {
   const next =
     CHAT_MODE_ORDER[(CHAT_MODE_ORDER.indexOf(mode) + 1) % CHAT_MODE_ORDER.length];
   return `Chat: ${CHAT_MODE_LABELS[mode]} (click: ${CHAT_MODE_LABELS[next]})`;
+}
+
+/** Describe the current footer position and what the next click will do. */
+function footerPositionTooltip(position: FooterPosition): string {
+  const next = position === "top" ? "bottom" : "top";
+  return `Footer: ${position} (click: ${next})`;
 }
 
 /**
@@ -58,6 +71,8 @@ export function FooterBar({
   twitchChannel,
   commentsEnabled,
   onToggleComments,
+  footerPosition,
+  onToggleFooterPosition,
 }: FooterBarProps) {
   const ChatModeIcon =
     chatMode === "split"
@@ -71,6 +86,20 @@ export function FooterBar({
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-t border-border bg-card/50">
       <div className="flex items-center gap-2 min-w-0">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0"
+          title={footerPositionTooltip(footerPosition)}
+          aria-label={`Move footer to ${footerPosition === "top" ? "bottom" : "top"}`}
+          onClick={onToggleFooterPosition}
+        >
+          {footerPosition === "top" ? (
+            <PanelTop className="h-3.5 w-3.5" />
+          ) : (
+            <PanelBottom className="h-3.5 w-3.5" />
+          )}
+        </Button>
         <Radio className="h-3.5 w-3.5 text-red-500 shrink-0" />
         <h1 className="text-sm font-semibold text-foreground truncate">
           {streamTitle}

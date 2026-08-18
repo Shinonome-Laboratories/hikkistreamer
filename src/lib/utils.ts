@@ -16,3 +16,18 @@ export function readCommentsEnabled(): boolean {
     return true
   }
 }
+
+/** Position of the stream footer: below or above the video. */
+export type FooterPosition = "top" | "bottom"
+
+/** localStorage key for the footer position toggle. */
+export const FOOTER_POSITION_KEY = "hikkistream:footerPosition"
+
+/** Read the persisted footer position preference (defaults to bottom). */
+export function readFooterPosition(): FooterPosition {
+  try {
+    return localStorage.getItem(FOOTER_POSITION_KEY) === "top" ? "top" : "bottom"
+  } catch {
+    return "bottom"
+  }
+}
