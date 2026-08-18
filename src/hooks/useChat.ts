@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   AuthPayload,
   CustomEmoji,
+  Banner,
   MediaType,
   PlaylistItem,
   PlayerState,
@@ -27,6 +28,7 @@ export function useChat() {
   const [streamTitle, setStreamTitle] = useState("hikkistream");
   const [titleFromPlaylist, setTitleFromPlaylist] = useState(true);
   const [customEmojis, setCustomEmojis] = useState<CustomEmoji[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
@@ -114,6 +116,10 @@ export function useChat() {
       setCustomEmojis(emojis);
     }
 
+    function onBannersList(banners: Banner[]) {
+      setBanners(banners);
+    }
+
     function onPlaylistList(items: PlaylistItem[]) {
       setPlaylistItems(items);
     }
@@ -139,6 +145,7 @@ export function useChat() {
     socket.on("stream:title", onStreamTitle);
     socket.on("stream:auto-title", onStreamAutoTitle);
     socket.on("emojis:list", onEmojisList);
+    socket.on("banners:list", onBannersList);
     socket.on("playlist:list", onPlaylistList);
     socket.on("playlist:error", onPlaylistError);
     socket.on("player:state", onPlayerState);
@@ -159,6 +166,7 @@ export function useChat() {
       socket.off("stream:title", onStreamTitle);
       socket.off("stream:auto-title", onStreamAutoTitle);
       socket.off("emojis:list", onEmojisList);
+      socket.off("banners:list", onBannersList);
       socket.off("playlist:list", onPlaylistList);
       socket.off("playlist:error", onPlaylistError);
       socket.off("player:state", onPlayerState);
@@ -343,6 +351,7 @@ export function useChat() {
     streamTitle,
     titleFromPlaylist,
     customEmojis,
+    banners,
     playlistItems,
     playlistError,
     playerState,

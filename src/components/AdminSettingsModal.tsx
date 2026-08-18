@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Trash2, UserX, UserCheck, Shield } from "lucide-react";
 import { socket } from "@/lib/socket";
-import type { CustomEmoji, RegisteredUser, User } from "../../shared/types";
+import type { Banner, CustomEmoji, RegisteredUser, User } from "../../shared/types";
 
 interface AdminSettingsModalProps {
   open: boolean;
@@ -23,6 +23,7 @@ interface AdminSettingsModalProps {
   streamTitle: string;
   titleFromPlaylist: boolean;
   customEmojis: CustomEmoji[];
+  banners: Banner[];
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -331,6 +332,160 @@ function CustomEmojisTab({ emojis }: { emojis: CustomEmoji[] }) {
   );
 }
 
+// ─── Banners Tab ─────────────────────────────────────────────────────────────
+function BannersTab({ banners }: { banners: Banner[] }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setError(null);
+    if (!["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"].includes(f.type)) {
+      setError("Unsupported format. Use jpeg, png, gif, webp, or avif.");
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setError("Image too large (max 5MB).");
+      return;
+    }
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  };
+
+  const handleAdd = async () => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const res = await fetch("/api/admin/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error: string };
+        throw new Error(data.error || "Upload failed");
+      }
+      setFile(null);
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (bannerId: string) => {
+    setDeletingId(bannerId);
+    try {
+      await fetch(`/api/admin/banner/${encodeURIComponent(bannerId)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+    } catch {
+      // ignore
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Banners are shown above the video. A random one is picked on every page load.
+        </p>
+        <div className="flex gap-2 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">Image</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {preview ? (
+                  <img src={preview} alt="preview" className="h-4 w-4 object-contain mr-1" />
+                ) : null}
+                {file ? "Change…" : "Choose File"}
+              </Button>
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={handleAdd}
+                disabled={uploading || !file}
+              >
+                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+
+      {banners.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">No banners yet.</p>
+      ) : (
+        <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto pr-1">
+          {banners.map((banner) => (
+            <div
+              key={banner.id}
+              className="flex flex-col items-center gap-1 p-2 rounded-md bg-secondary/40 group relative"
+            >
+              <img
+                src={banner.url}
+                alt="Banner"
+                className="h-12 w-full object-cover rounded"
+              />
+              <button
+                onClick={() => handleDelete(banner.id)}
+                disabled={deletingId === banner.id}
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                title="Delete banner"
+              >
+                {deletingId === banner.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Banned Users Tab ────────────────────────────────────────────────────────
 interface BannedUser { id: string; username: string }
 
@@ -574,6 +729,7 @@ export function AdminSettingsModal({
   streamTitle,
   titleFromPlaylist,
   customEmojis,
+  banners,
 }: AdminSettingsModalProps) {
   const isAdmin = user.is_admin;
   return (
@@ -590,6 +746,7 @@ export function AdminSettingsModal({
               <TabsTrigger value="stream" className="flex-1 text-xs">Stream</TabsTrigger>
             )}
             <TabsTrigger value="emojis" className="flex-1 text-xs">Custom Emojis</TabsTrigger>
+            <TabsTrigger value="banners" className="flex-1 text-xs">Banners</TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="banned" className="flex-1 text-xs">Banned Users</TabsTrigger>
             )}
@@ -607,6 +764,9 @@ export function AdminSettingsModal({
           )}
           <TabsContent value="emojis">
             <CustomEmojisTab emojis={customEmojis} />
+          </TabsContent>
+          <TabsContent value="banners">
+            <BannersTab banners={banners} />
           </TabsContent>
           {isAdmin && (
             <TabsContent value="banned">

@@ -60,15 +60,18 @@ import type {
   ClientToServerEvents,
   User,
   CustomEmoji,
+  Banner,
   MediaType,
 } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const avatarsDir = path.join(__dirname, "..", "data", "avatars");
 const emojisDir = path.join(__dirname, "..", "data", "emojis");
+const bannersDir = path.join(__dirname, "..", "data", "banners");
 const uploadsDir = path.join(__dirname, "..", "data", "uploads");
 fs.mkdirSync(avatarsDir, { recursive: true });
 fs.mkdirSync(emojisDir, { recursive: true });
+fs.mkdirSync(bannersDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 // --- chat media uploads ---
@@ -167,6 +170,10 @@ function getCustomEmojis(): CustomEmoji[] {
   return db.prepare("SELECT name, url FROM custom_emojis ORDER BY created_at ASC").all() as CustomEmoji[];
 }
 
+function getBanners(): Banner[] {
+  return db.prepare("SELECT id, url FROM banners ORDER BY created_at ASC").all() as Banner[];
+}
+
 function getBannedUsers(): { id: string; username: string }[] {
   return db.prepare(
     "SELECT id, username FROM users WHERE is_banned = 1 AND is_guest = 0 ORDER BY username COLLATE NOCASE ASC"
@@ -183,6 +190,7 @@ app.use(cors());
 app.use(express.json({ limit: "3mb" }));
 app.use("/avatars", express.static(avatarsDir));
 app.use("/emojis", express.static(emojisDir));
+app.use("/banners", express.static(bannersDir));
 app.use("/uploads", express.static(uploadsDir));
 
 app.post("/api/avatar", (req, res) => {
@@ -369,6 +377,56 @@ app.delete("/api/admin/emoji/:name", (req, res) => {
   res.json({ ok: true });
 });
 
+// --- admin: upload banner image ---
+app.post("/api/admin/banner", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !isStaff(user)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { image } = req.body as { image?: string };
+  if (!image || typeof image !== "string") {
+    res.status(400).json({ error: "No image provided" }); return;
+  }
+  const match = image.match(/^data:(image\/(?:jpeg|png|gif|webp|avif));base64,(.+)$/);
+  if (!match) {
+    res.status(400).json({ error: "Invalid image format. Allowed: jpeg, png, gif, webp, avif." }); return;
+  }
+  const [, mimeType, base64Data] = match;
+  const buffer = Buffer.from(base64Data, "base64");
+  if (buffer.length > 5 * 1024 * 1024) {
+    res.status(400).json({ error: "Image too large (max 5MB)" }); return;
+  }
+  const ext = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
+  const id = randomUUID();
+  const filename = `${id}.${ext}`;
+  const filepath = path.join(bannersDir, filename);
+  fs.writeFileSync(filepath, buffer);
+  const url = `/banners/${filename}`;
+  db.prepare("INSERT INTO banners (id, url) VALUES (?, ?)").run(id, url);
+  io.emit("banners:list", getBanners());
+  res.json({ id, url });
+});
+
+// --- admin: delete banner image ---
+app.delete("/api/admin/banner/:id", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const user = authenticateToken(auth.slice(7));
+  if (!user || !isStaff(user)) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { id } = req.params as { id: string };
+  if (!id) {
+    res.status(400).json({ error: "Invalid banner id" }); return;
+  }
+  const row = db.prepare("SELECT url FROM banners WHERE id = ?").get(id) as { url: string } | undefined;
+  if (row) {
+    db.prepare("DELETE FROM banners WHERE id = ?").run(id);
+    const p = path.join(bannersDir, path.basename(row.url));
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+  io.emit("banners:list", getBanners());
+  res.json({ ok: true });
+});
+
 // --- admin: list banned users ---
 app.get("/api/admin/banned", (req, res) => {
   const auth = req.headers.authorization;
@@ -518,6 +576,7 @@ io.on("connection", (socket) => {
   socket.emit("stream:title", getStreamTitle());
   socket.emit("stream:auto-title", getTitleFromPlaylist());
   socket.emit("emojis:list", getCustomEmojis());
+  socket.emit("banners:list", getBanners());
   socket.emit("playlist:list", getPlaylistItems());
   socket.emit("chat:history", getRecentMessages(50));
   socket.emit("users:count", socketUsers.size);

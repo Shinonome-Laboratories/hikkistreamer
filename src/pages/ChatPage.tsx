@@ -20,6 +20,7 @@ export default function ChatPage() {
     streamTitle,
     titleFromPlaylist,
     customEmojis,
+    banners,
     registerUser,
     loginUser,
     guestLogin,
@@ -110,6 +111,7 @@ export default function ChatPage() {
               streamTitle={streamTitle}
               titleFromPlaylist={titleFromPlaylist}
               customEmojis={customEmojis}
+              banners={banners}
             />
           )}
         </>

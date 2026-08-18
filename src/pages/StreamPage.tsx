@@ -7,7 +7,7 @@ import { readCommentsEnabled } from "@/lib/utils";
 import { AdminSettingsModal } from "@/components/AdminSettingsModal";
 
 export default function StreamPage() {
-  const { user, streamTitle, titleFromPlaylist, customEmojis, activeItem } = useChat();
+  const { user, streamTitle, titleFromPlaylist, customEmojis, banners, activeItem } = useChat();
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
   const [commentsEnabled] = useState<boolean>(readCommentsEnabled);
 
@@ -50,6 +50,7 @@ export default function StreamPage() {
           streamTitle={streamTitle}
           titleFromPlaylist={titleFromPlaylist}
           customEmojis={customEmojis}
+          banners={banners}
         />
       )}
     </div>

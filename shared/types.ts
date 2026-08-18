@@ -44,6 +44,11 @@ export interface CustomEmoji {
   url: string;
 }
 
+export interface Banner {
+  id: string;
+  url: string;
+}
+
 export type PlaylistSource = "hikkistream" | "twitch" | "youtube";
 
 export interface PlaylistItem {
@@ -109,6 +114,7 @@ export interface ServerToClientEvents {
   /** Whether the stream title auto-follows the active playlist item. */
   "stream:auto-title": (enabled: boolean) => void;
   "emojis:list": (emojis: CustomEmoji[]) => void;
+  "banners:list": (banners: Banner[]) => void;
   "playlist:list": (items: PlaylistItem[]) => void;
   "playlist:error": (payload: { message: string }) => void;
   "player:state": (state: PlayerState) => void;

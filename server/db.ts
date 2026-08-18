@@ -66,6 +66,12 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS banners (
+    id TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS playlist_items (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,

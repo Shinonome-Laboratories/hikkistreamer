@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { StreamPlayer } from "@/components/StreamPlayer";
+import { BannerStrip } from "@/components/Banner";
 import { FooterBar } from "@/components/FooterBar";
 import { Playlist } from "@/components/Playlist";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -38,6 +39,7 @@ export default function App() {
     streamTitle,
     titleFromPlaylist,
     customEmojis,
+    banners,
     playlistItems,
     playlistError,
     activeItem,
@@ -173,6 +175,7 @@ export default function App() {
       {/* Stream panel */}
       <div className="flex-1 min-w-0 flex flex-col">
         {footerPosition === "top" && footer}
+        <BannerStrip banners={banners} />
         <div
           className={`flex-1 min-h-0 ${
             footerPosition === "top" ? "pb-2 lg:pb-3" : "pt-2 lg:pt-3"
@@ -286,6 +289,7 @@ export default function App() {
               streamTitle={streamTitle}
               titleFromPlaylist={titleFromPlaylist}
               customEmojis={customEmojis}
+              banners={banners}
             />
           )}
         </>
