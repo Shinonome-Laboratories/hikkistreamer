@@ -89,8 +89,8 @@ export function FooterBar({
       className={cn(
         "flex items-center justify-between gap-2 px-3 py-1.5 border-border bg-card/50",
         footerPosition === "top"
-          ? "border-b pt-[env(safe-area-inset-top)]"
-          : "border-t lg:pb-[env(safe-area-inset-bottom)]",
+          ? "border-b pt-[calc(env(safe-area-inset-top)+0.375rem)]"
+          : "border-t lg:pb-[calc(env(safe-area-inset-bottom)+0.375rem)]",
       )}
     >
       <div className="flex items-center gap-2 min-w-0">
