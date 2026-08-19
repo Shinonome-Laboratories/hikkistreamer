@@ -7,6 +7,7 @@ import { LoginModal } from "@/components/LoginModal";
 import { CustomizeModal } from "@/components/CustomizeModal";
 import { UserListModal } from "@/components/UserListModal";
 import { AdminSettingsModal } from "@/components/AdminSettingsModal";
+import { TIMESTAMPS_KEY, readTimestampsEnabled } from "@/lib/utils";
 
 export default function ChatPage() {
   const {
@@ -39,6 +40,17 @@ export default function ChatPage() {
   const [userListOpen, setUserListOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
+  const [timestampsEnabled, setTimestampsEnabled] = useState<boolean>(readTimestampsEnabled);
+
+  // Persist the show-timestamps preference (localStorage; default off).
+  const setTimestamps = (enabled: boolean) => {
+    setTimestampsEnabled(enabled);
+    try {
+      localStorage.setItem(TIMESTAMPS_KEY, enabled ? "1" : "0");
+    } catch {
+      // Storage may be unavailable (private browsing, etc.).
+    }
+  };
 
   useEffect(() => {
     if (user) setLoginModalOpen(false);
@@ -70,6 +82,7 @@ export default function ChatPage() {
           onDelete={deleteMsg}
           onBan={banUserAction}
           customEmojis={customEmojis}
+          showTimestamps={timestampsEnabled}
         />
         <ChatInput
           onSend={sendMessage}
@@ -97,6 +110,8 @@ export default function ChatPage() {
             user={user}
             onSave={customize}
             onUploadAvatar={uploadAvatar}
+            timestampsEnabled={timestampsEnabled}
+            onToggleTimestamps={setTimestamps}
           />
           <UserListModal
             open={userListOpen}

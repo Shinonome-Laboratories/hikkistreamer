@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import type { User } from "../../shared/types";
 
 interface CustomizeModalProps {
@@ -17,6 +18,10 @@ interface CustomizeModalProps {
   user: User;
   onSave: (data: { username_color?: string; message_color?: string }) => void;
   onUploadAvatar: (dataUrl: string) => Promise<void>;
+  /** Whether chat timestamps are displayed (local viewer preference). */
+  timestampsEnabled: boolean;
+  /** Toggle chat timestamps and persist the preference. */
+  onToggleTimestamps: (enabled: boolean) => void;
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -32,11 +37,15 @@ function CustomizeForm({
   user,
   onSave,
   onUploadAvatar,
+  timestampsEnabled,
+  onToggleTimestamps,
   onClose,
 }: {
   user: User;
   onSave: CustomizeModalProps["onSave"];
   onUploadAvatar: CustomizeModalProps["onUploadAvatar"];
+  timestampsEnabled: CustomizeModalProps["timestampsEnabled"];
+  onToggleTimestamps: CustomizeModalProps["onToggleTimestamps"];
   onClose: () => void;
 }) {
   const [usernameColor, setUsernameColor] = useState(user.username_color);
@@ -180,6 +189,16 @@ function CustomizeForm({
         </div>
       </div>
 
+      <div className="flex items-center justify-between gap-2 rounded-md border border-border p-2.5">
+        <div className="space-y-0.5">
+          <Label className="text-xs">Show Timestamps</Label>
+          <p className="text-xs text-muted-foreground">
+            Display the time each chat message was sent.
+          </p>
+        </div>
+        <Switch checked={timestampsEnabled} onCheckedChange={onToggleTimestamps} />
+      </div>
+
       <Button onClick={handleSave} className="w-full h-8 text-sm" disabled={uploading}>
         {uploading ? "Saving…" : "Save"}
       </Button>
@@ -193,6 +212,8 @@ export function CustomizeModal({
   user,
   onSave,
   onUploadAvatar,
+  timestampsEnabled,
+  onToggleTimestamps,
 }: CustomizeModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,6 +226,8 @@ export function CustomizeModal({
           user={user}
           onSave={onSave}
           onUploadAvatar={onUploadAvatar}
+          timestampsEnabled={timestampsEnabled}
+          onToggleTimestamps={onToggleTimestamps}
           onClose={() => onOpenChange(false)}
         />
       </DialogContent>

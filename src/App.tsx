@@ -21,8 +21,10 @@ import { ListMusic } from "lucide-react";
 import {
   COMMENTS_KEY,
   FOOTER_POSITION_KEY,
+  TIMESTAMPS_KEY,
   readCommentsEnabled,
   readFooterPosition,
+  readTimestampsEnabled,
   type FooterPosition,
 } from "@/lib/utils";
 
@@ -68,6 +70,7 @@ export default function App() {
   const [chatMode, setChatMode] = useState<ChatMode>("hikkistream");
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(readCommentsEnabled);
   const [footerPosition, setFooterPosition] = useState<FooterPosition>(readFooterPosition);
+  const [timestampsEnabled, setTimestampsEnabled] = useState<boolean>(readTimestampsEnabled);
 
   const toggleComments = useCallback(() => {
     setCommentsEnabled((prev) => {
@@ -91,6 +94,16 @@ export default function App() {
       }
       return next;
     });
+  }, []);
+
+  // Persist the show-timestamps preference (localStorage; default off).
+  const setTimestamps = useCallback((enabled: boolean) => {
+    setTimestampsEnabled(enabled);
+    try {
+      localStorage.setItem(TIMESTAMPS_KEY, enabled ? "1" : "0");
+    } catch {
+      // Storage may be unavailable (private browsing, etc.).
+    }
   }, []);
 
   // The active Twitch channel, or null when a Twitch stream isn't playing.
@@ -213,6 +226,7 @@ export default function App() {
                   onDelete={deleteMsg}
                   onBan={banUserAction}
                   customEmojis={customEmojis}
+                  showTimestamps={timestampsEnabled}
                 />
                 <ChatInput
                   onSend={sendMessage}
@@ -240,6 +254,7 @@ export default function App() {
               onDelete={deleteMsg}
               onBan={banUserAction}
               customEmojis={customEmojis}
+              showTimestamps={timestampsEnabled}
             />
             <ChatInput
               onSend={sendMessage}
@@ -270,6 +285,8 @@ export default function App() {
             user={user}
             onSave={customize}
             onUploadAvatar={uploadAvatar}
+            timestampsEnabled={timestampsEnabled}
+            onToggleTimestamps={setTimestamps}
           />
           <UserListModal
             open={userListOpen}

@@ -2,6 +2,7 @@ import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { buildEmojiMap, renderContent } from "@/lib/renderContent";
 import { Button } from "@/components/ui/button";
 import { Trash2, Ban } from "lucide-react";
+import { formatTimestamp } from "@/lib/utils";
 import type { ChatMessage as ChatMessageType, CustomEmoji } from "../../shared/types";
 
 interface ChatMessageProps {
@@ -16,6 +17,8 @@ interface ChatMessageProps {
   onDelete: (messageId: string) => void;
   onBan: (userId: string) => void;
   customEmojis: CustomEmoji[];
+  /** Show a small HH:MM timestamp before each message (viewer preference). */
+  showTimestamps?: boolean;
 }
 
 export function ChatMessage({
@@ -27,6 +30,7 @@ export function ChatMessage({
   onDelete,
   onBan,
   customEmojis,
+  showTimestamps = false,
 }: ChatMessageProps) {
   const emojiMap = buildEmojiMap(customEmojis);
 
@@ -44,6 +48,12 @@ export function ChatMessage({
     message.user_id !== currentUserId &&
     !message.author_is_admin &&
     !message.author_is_moderator;
+
+  // Show a small HH:MM timestamp when the viewer enables it.
+  const timestamp = showTimestamps
+    ? formatTimestamp(message.created_at)
+    : null;
+
   if (message.is_deleted) {
     return (
       <div className="px-3 py-1 opacity-40 italic text-xs text-muted-foreground">
@@ -61,6 +71,11 @@ export function ChatMessage({
       )}
       <div className="min-w-0 flex-1">
         <span className="inline">
+          {timestamp && (
+            <span className="text-[10px] text-muted-foreground mr-1.5">
+              {timestamp}
+            </span>
+          )}
           <span
             className="text-sm font-semibold mr-1.5"
             style={{ color: message.username_color }}

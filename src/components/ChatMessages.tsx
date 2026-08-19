@@ -14,6 +14,8 @@ interface ChatMessagesProps {
   onDelete: (messageId: string) => void;
   onBan: (userId: string) => void;
   customEmojis: CustomEmoji[];
+  /** Whether to show a timestamp on each message (viewer preference). */
+  showTimestamps: boolean;
 }
 
 export function ChatMessages({
@@ -27,6 +29,7 @@ export function ChatMessages({
   onDelete,
   onBan,
   customEmojis,
+  showTimestamps,
 }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -111,6 +114,7 @@ export function ChatMessages({
           onDelete={onDelete}
           onBan={onBan}
           customEmojis={customEmojis}
+          showTimestamps={showTimestamps}
         />
       ))}
       <div ref={bottomRef} />
