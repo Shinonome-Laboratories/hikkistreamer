@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useChat } from "@/hooks/useChat";
 import { StreamPlayer } from "@/components/StreamPlayer";
 import { FooterBar } from "@/components/FooterBar";
@@ -6,6 +12,11 @@ import { Playlist } from "@/components/Playlist";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatMessages } from "@/components/ChatMessages";
 import { ChatInput } from "@/components/ChatInput";
+import {
+  ChatPanelHandle,
+  MAX_CHAT_HEIGHT,
+  MIN_CHAT_HEIGHT,
+} from "@/components/ChatPanelHandle";
 import {
   CHAT_MODE_ORDER,
   TwitchChatEmbed,
@@ -19,9 +30,13 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { ListMusic } from "lucide-react";
 import {
+  CHAT_HEIGHT_KEY,
+  CHAT_ONLY_KEY,
   COMMENTS_KEY,
   FOOTER_POSITION_KEY,
   TIMESTAMPS_KEY,
+  readChatHeight,
+  readChatOnly,
   readCommentsEnabled,
   readFooterPosition,
   readTimestampsEnabled,
@@ -71,6 +86,9 @@ export default function App() {
   const [commentsEnabled, setCommentsEnabled] = useState<boolean>(readCommentsEnabled);
   const [footerPosition, setFooterPosition] = useState<FooterPosition>(readFooterPosition);
   const [timestampsEnabled, setTimestampsEnabled] = useState<boolean>(readTimestampsEnabled);
+  // Mobile-only: chat panel height (% of viewport) and full-screen chat mode.
+  const [chatHeightPct, setChatHeightPct] = useState<number>(readChatHeight);
+  const [chatOnly, setChatOnly] = useState<boolean>(readChatOnly);
 
   const toggleComments = useCallback(() => {
     setCommentsEnabled((prev) => {
@@ -105,6 +123,71 @@ export default function App() {
       // Storage may be unavailable (private browsing, etc.).
     }
   }, []);
+
+  // Persist the mobile chat panel height (percent of viewport; mobile only).
+  const setChatHeight = useCallback((pct: number) => {
+    setChatHeightPct(pct);
+    try {
+      localStorage.setItem(CHAT_HEIGHT_KEY, String(pct));
+    } catch {
+      // Storage may be unavailable (private browsing, etc.).
+    }
+  }, []);
+
+  // Persist the mobile chat-only mode (video hidden; mobile only).
+  const toggleChatOnly = useCallback(() => {
+    setChatOnly((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(CHAT_ONLY_KEY, next ? "1" : "0");
+      } catch {
+        // Storage may be unavailable (private browsing, etc.).
+      }
+      return next;
+    });
+  }, []);
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const streamRef = useRef<HTMLDivElement | null>(null);
+
+  // Maximum chat height (% of viewport) for the current layout: the chat may
+  // grow until its top edge reaches the bottom of the video player, i.e. the
+  // stream panel keeps the footer + banner + the video at its natural size.
+  const chatMaxPct = useCallback((): number => {
+    const root = rootRef.current;
+    const rootH = root?.getBoundingClientRect().height;
+    if (!rootH || rootH <= 0) return MAX_CHAT_HEIGHT;
+    const stream = streamRef.current;
+    const footer = stream?.querySelector<HTMLElement>("[data-footer]");
+    const banner = stream?.querySelector<HTMLElement>("[data-banner]");
+    const footerH = footer?.getBoundingClientRect().height ?? 0;
+    const bannerH = banner?.getBoundingClientRect().height ?? 0;
+    // The video player is a 16:9 box spanning the full width on mobile.
+    const videoH = window.innerWidth * (9 / 16);
+    const minStreamPx = footerH + bannerH + videoH;
+    const max = 100 - (minStreamPx / rootH) * 100;
+    return Math.max(MIN_CHAT_HEIGHT, Math.min(MAX_CHAT_HEIGHT, max));
+  }, []);
+
+  // Clamp the (possibly persisted) chat height to the current max after the
+  // first layout, and re-clamp on resize/orientation changes. Skipped on
+  // desktop (lg+) where the panel is fixed full-height. setState runs inside
+  // the rAF/listener callbacks, not synchronously in the effect body.
+  useEffect(() => {
+    const refresh = () => {
+      if (window.matchMedia("(min-width: 64rem)").matches) return;
+      const max = chatMaxPct();
+      setChatHeightPct((prev) => (prev > max ? max : prev));
+    };
+    const id = requestAnimationFrame(refresh);
+    window.addEventListener("resize", refresh);
+    window.addEventListener("orientationchange", refresh);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("resize", refresh);
+      window.removeEventListener("orientationchange", refresh);
+    };
+  }, [chatMaxPct]);
 
   // The active Twitch channel, or null when a Twitch stream isn't playing.
   const twitchChannel =
@@ -159,11 +242,11 @@ export default function App() {
               <Button
                 variant="ghost"
                 size="xs"
-                className="h-6 gap-1"
+                className="h-9 sm:h-6 gap-1"
                 title="Playlist"
               >
                 <ListMusic className="h-3.5 w-3.5" />
-                <span>Playlist</span>
+                <span className="hidden sm:inline">Playlist</span>
               </Button>
             }
           />
@@ -183,9 +266,19 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen w-screen flex flex-col lg:flex-row bg-background overflow-hidden">
-      {/* Stream panel */}
-      <div className="flex-1 min-w-0 flex flex-col">
+    <div
+      ref={rootRef}
+      className="h-dvh w-screen flex flex-col lg:flex-row bg-background overflow-hidden"
+    >
+      {/* Stream panel (hidden on mobile in chat-only mode). min-h-0 lets it
+          collapse to its fixed content (footer) when the chat panel is dragged
+          tall, so the chat never overflows the viewport. */}
+      <div
+        ref={streamRef}
+        className={`min-w-0 flex flex-col flex-1 min-h-0 ${
+          chatOnly ? "hidden lg:flex" : ""
+        }`}
+      >
         {footerPosition === "top" && footer}
         <div className="flex-1 min-h-0">
           <StreamPlayer
@@ -199,7 +292,21 @@ export default function App() {
       </div>
 
       {/* Chat panel */}
-      <div className="w-full lg:w-[360px] h-[50vh] lg:h-screen border-t lg:border-t-0 lg:border-l border-border flex flex-col bg-card/30">
+      <div
+        className="chat-panel w-full lg:w-[360px] border-t lg:border-t-0 lg:border-l border-border flex flex-col bg-card/30"
+        style={
+          {
+            "--chat-panel-height": `${chatOnly ? 100 : chatHeightPct}dvh`,
+          } as CSSProperties
+        }
+      >
+        <ChatPanelHandle
+          heightPct={chatHeightPct}
+          onHeightChange={setChatHeight}
+          chatOnly={chatOnly}
+          onToggleChatOnly={toggleChatOnly}
+          measureMaxPct={chatMaxPct}
+        />
         <ChatHeader
           user={user}
           userCount={userCount}

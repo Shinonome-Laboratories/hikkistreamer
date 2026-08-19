@@ -35,7 +35,7 @@ export function ChatHeader({
         {user && (
           <>
             <span
-              className="text-xs font-medium mr-1 flex items-center gap-1"
+              className="text-xs font-medium mr-1 flex items-center gap-1 max-w-32 truncate"
               style={{ color: user.username_color }}
             >
               {user.is_admin ? (
@@ -48,7 +48,7 @@ export function ChatHeader({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
+              className="h-8 w-8 sm:h-6 sm:w-6"
               onClick={onOpenCustomize}
               title="Customize"
             >
@@ -57,7 +57,7 @@ export function ChatHeader({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
+              className="h-8 w-8 sm:h-6 sm:w-6"
               onClick={onLogout}
               title="Logout"
             >

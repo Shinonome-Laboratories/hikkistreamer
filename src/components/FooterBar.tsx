@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CHAT_MODE_ORDER, type ChatMode } from "@/components/TwitchChatEmbed";
-import type { FooterPosition } from "@/lib/utils";
+import { cn, type FooterPosition } from "@/lib/utils";
 
 interface FooterBarProps {
   streamTitle: string;
@@ -84,12 +84,20 @@ export function FooterBar({
   const canModerate = isAdmin || isModerator;
 
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-t border-border bg-card/50">
+    <div
+      data-footer
+      className={cn(
+        "flex items-center justify-between gap-2 px-3 py-1.5 border-border bg-card/50",
+        footerPosition === "top"
+          ? "border-b pt-[env(safe-area-inset-top)]"
+          : "border-t lg:pb-[env(safe-area-inset-bottom)]",
+      )}
+    >
       <div className="flex items-center gap-2 min-w-0">
         <Button
           variant="ghost"
           size="icon-xs"
-          className="shrink-0"
+          className="h-9 w-9 sm:h-6 sm:w-6 shrink-0"
           title={footerPositionTooltip(footerPosition)}
           aria-label={`Move footer to ${footerPosition === "top" ? "bottom" : "top"}`}
           onClick={onToggleFooterPosition}
@@ -105,11 +113,11 @@ export function FooterBar({
           {streamTitle}
         </h1>
       </div>
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-0.5 shrink-0">
         <Button
           variant="outline"
           size="xs"
-          className="h-6 gap-1"
+          className="h-9 sm:h-6 gap-1"
           title={`Comments overlay: ${commentsEnabled ? "on" : "off"}`}
           aria-label="Toggle comments overlay"
           aria-pressed={commentsEnabled}
@@ -121,7 +129,9 @@ export function FooterBar({
             }`}
           />
           <span
-            className={commentsEnabled ? "text-foreground" : "text-muted-foreground opacity-60"}
+            className={`hidden sm:inline ${
+              commentsEnabled ? "text-foreground" : "text-muted-foreground opacity-60"
+            }`}
           >
             niconico
           </span>
@@ -130,7 +140,7 @@ export function FooterBar({
           <Button
             variant="ghost"
             size="xs"
-            className="h-6 gap-1"
+            className="h-9 sm:h-6 gap-1"
             title={chatModeTooltip(chatMode)}
             onClick={onCycleChatMode}
           >
@@ -138,7 +148,9 @@ export function FooterBar({
               className={`h-3.5 w-3.5 ${chatMode === "twitch" ? "text-purple-500" : ""}`}
             />
             <span
-              className={chatMode === "twitch" ? "text-purple-500" : "text-foreground"}
+              className={`hidden sm:inline ${
+                chatMode === "twitch" ? "text-purple-500" : "text-foreground"
+              }`}
             >
               {CHAT_MODE_LABELS[chatMode]}
             </span>
@@ -149,12 +161,12 @@ export function FooterBar({
           <Button
             variant="outline"
             size="xs"
-            className="h-6 gap-1"
+            className="h-9 sm:h-6 gap-1"
             onClick={onOpenAdminSettings}
             title={isAdmin ? "Admin settings" : "Moderator settings"}
           >
             <Settings className="h-3.5 w-3.5" />
-            {isAdmin ? "Admin" : "Mod"}
+            <span className="hidden sm:inline">{isAdmin ? "Admin" : "Mod"}</span>
           </Button>
         )}
       </div>

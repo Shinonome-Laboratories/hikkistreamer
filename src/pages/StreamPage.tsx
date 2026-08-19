@@ -12,7 +12,7 @@ export default function StreamPage() {
   const [commentsEnabled] = useState<boolean>(readCommentsEnabled);
 
   return (
-    <div className="group relative h-screen w-screen bg-background overflow-hidden">
+    <div className="group relative h-dvh w-screen bg-background overflow-hidden">
       <div className="absolute inset-0">
         <StreamPlayer
           activeItem={activeItem}
@@ -20,7 +20,7 @@ export default function StreamPage() {
           commentsEnabled={commentsEnabled}
         />
       </div>
-      <div className="absolute top-3 left-3 right-3 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
+      <div className="absolute top-3 left-3 right-3 pointer-events-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity duration-200">
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-semibold text-foreground drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             {streamTitle}

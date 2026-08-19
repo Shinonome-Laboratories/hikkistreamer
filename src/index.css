@@ -157,6 +157,21 @@ img.emoji {
   margin: 0 0.05em;
 }
 
+/*
+ * Chat panel (App.tsx). On mobile the height is driven by a CSS custom
+ * property set inline by the resize handle (`--chat-panel-height`); on lg+ the
+ * panel is always full height beside the stream.
+ */
+.chat-panel {
+  height: var(--chat-panel-height, 50dvh);
+}
+
+@media (min-width: 64rem) {
+  .chat-panel {
+    height: 100dvh;
+  }
+}
+
 /* Chat custom scrollbar — dark & compact */
 .chat-scroll {
   scrollbar-width: thin;

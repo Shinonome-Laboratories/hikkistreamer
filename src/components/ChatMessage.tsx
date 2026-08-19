@@ -118,12 +118,12 @@ export function ChatMessage({
         )}
       </div>
       {(canDeleteMessage || canBanUser) && (
-        <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+        <div className="hidden group-hover:flex pointer-coarse:flex items-center gap-0.5 shrink-0">
           {canDeleteMessage && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-destructive"
               onClick={() => onDelete(message.id)}
               title="Delete message"
             >
@@ -134,7 +134,7 @@ export function ChatMessage({
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 sm:h-5 sm:w-5 text-muted-foreground hover:text-destructive"
               onClick={() => onBan(message.user_id)}
               title="Ban user"
             >

@@ -238,7 +238,11 @@ export function Playlist({
   };
 
   return (
-    <PopoverContent side="top" align="end" className="w-96 max-h-[min(440px,80vh)]">
+    <PopoverContent
+      side="top"
+      align="end"
+      className="w-[min(24rem,calc(100vw-2rem))] max-h-[min(440px,80dvh)]"
+    >
       <div className="flex items-center gap-1.5 px-0.5">
         <ListMusic className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-medium">Playlist</h3>

@@ -62,7 +62,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-dvh w-screen flex flex-col bg-background overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 bg-card/30">
         <ChatHeader
           user={user}

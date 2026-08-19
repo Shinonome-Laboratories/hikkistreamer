@@ -421,7 +421,9 @@ export function StreamPlayer({
           top of the video box, and the whole group is centered vertically. */}
       <div className="flex flex-col items-center w-full max-w-full max-h-full min-h-0">
         {banners.length > 0 && (
-          <div className="w-full shrink-0">
+          /* Banner strip: hidden on portrait (mobile) where vertical space is
+             scarce; shown on landscape. */
+          <div data-banner className="w-full shrink-0 portrait:hidden">
             <BannerStrip banners={banners} />
           </div>
         )}

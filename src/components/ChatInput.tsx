@@ -197,7 +197,10 @@ export function ChatInput({
   const canSend = !disabled && !uploading && (value.trim().length > 0 || Boolean(uploadedMedia));
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-border">
+    <form
+      onSubmit={handleSubmit}
+      className="border-t border-border pb-[env(safe-area-inset-bottom)]"
+    >
       {uploadError && (
         <div className="px-2 pt-2">
           <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1.5">

@@ -746,7 +746,7 @@ export function AdminSettingsModal({
   const isStaff = user.is_admin || user.is_moderator;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[720px] max-w-[95vw] sm:max-w-[720px] min-h-[560px] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[720px] max-w-[95vw] sm:max-w-[720px] min-h-[560px] max-h-[90dvh] overflow-hidden flex flex-col">
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-sm">
             {isAdmin ? "Admin Settings" : "Moderator Settings"}

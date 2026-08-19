@@ -44,6 +44,38 @@ export function readTimestampsEnabled(): boolean {
   }
 }
 
+/** Default mobile chat panel height (percent of viewport height). */
+export const DEFAULT_CHAT_HEIGHT = 50
+
+/** localStorage key for the mobile chat panel height (percent). */
+export const CHAT_HEIGHT_KEY = "hikkistream:chatHeight"
+
+/** Read the persisted mobile chat panel height (defaults to 50, clamped 30-90). */
+export function readChatHeight(): number {
+  try {
+    const raw = Number.parseInt(
+      localStorage.getItem(CHAT_HEIGHT_KEY) ?? "",
+      10,
+    )
+    if (Number.isFinite(raw)) return Math.min(90, Math.max(30, raw))
+    return DEFAULT_CHAT_HEIGHT
+  } catch {
+    return DEFAULT_CHAT_HEIGHT
+  }
+}
+
+/** localStorage key for the mobile chat-only mode toggle. */
+export const CHAT_ONLY_KEY = "hikkistream:chatOnly"
+
+/** Read the persisted chat-only preference (defaults to off). */
+export function readChatOnly(): boolean {
+  try {
+    return localStorage.getItem(CHAT_ONLY_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
 /**
  * Format a chat message's `created_at` for display as local time HH:MM.
  *
