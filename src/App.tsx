@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { StreamPlayer } from "@/components/StreamPlayer";
-import { BannerStrip } from "@/components/Banner";
 import { FooterBar } from "@/components/FooterBar";
 import { Playlist } from "@/components/Playlist";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -175,16 +174,12 @@ export default function App() {
       {/* Stream panel */}
       <div className="flex-1 min-w-0 flex flex-col">
         {footerPosition === "top" && footer}
-        <BannerStrip banners={banners} />
-        <div
-          className={`flex-1 min-h-0 ${
-            footerPosition === "top" ? "" : "pt-2 lg:pt-3"
-          }`}
-        >
+        <div className="flex-1 min-h-0">
           <StreamPlayer
             activeItem={activeItem}
             canControl={!!(user?.is_admin || user?.is_moderator)}
             commentsEnabled={commentsEnabled}
+            banners={banners}
           />
         </div>
         {footerPosition === "bottom" && footer}

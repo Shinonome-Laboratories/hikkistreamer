@@ -21,7 +21,12 @@ export function ChatHeader({
   return (
     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-card/50">
       <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5 gap-1">
+        <Badge
+          variant="secondary"
+          className="text-xs px-1.5 py-0 h-5 gap-1 cursor-pointer hover:bg-secondary/80"
+          onClick={onOpenUserList}
+          title="User list"
+        >
           <Users className="h-3 w-3" />
           {userCount} User{userCount === 1 ? "" : "s"} Online
         </Badge>
@@ -40,15 +45,6 @@ export function ChatHeader({
               ) : null}
               {user.username}
             </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={onOpenUserList}
-              title="User list"
-            >
-              <Users className="h-3.5 w-3.5" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"

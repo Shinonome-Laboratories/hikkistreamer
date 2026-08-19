@@ -4,8 +4,9 @@ import "plyr/dist/plyr.css";
 import Hls from "hls.js";
 import { MediaMTXWebRTCReader } from "@/lib/whep.ts";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
+import { BannerStrip } from "@/components/Banner";
 import { CommentOverlay } from "@/components/CommentOverlay";
-import type { PlaylistItem } from "../../shared/types";
+import type { Banner, PlaylistItem } from "../../shared/types";
 
 type Protocol = "hls" | "webrtc";
 
@@ -121,7 +122,7 @@ function PlayerCore({ mode, onSwitch, onReload }: PlayerCoreProps) {
     // would leave React's ref pointing at a detached node after StrictMode's
     // double-invoke in development.
     const video = document.createElement("video");
-    video.className = "w-full h-full";
+    video.className = "w-full h-full object-contain";
     video.playsInline = true;
     video.controls = true;
     container.appendChild(video);
@@ -310,6 +311,8 @@ interface StreamPlayerProps {
   canControl?: boolean;
   /** Whether niconico-style comments overlay is enabled (footer toggle). */
   commentsEnabled?: boolean;
+  /** Banner strips rendered directly above the video, forming one centered block. */
+  banners?: Banner[];
 }
 
 function TwitchEmbed({ channel }: { channel: string }) {
@@ -370,6 +373,7 @@ export function StreamPlayer({
   activeItem = null,
   canControl = true,
   commentsEnabled = true,
+  banners = [],
 }: StreamPlayerProps) {
   const [mode, setMode] = useState<Protocol>(readProtocol);
   const [reloadKey, setReloadKey] = useState(0);
@@ -412,13 +416,24 @@ export function StreamPlayer({
   }
 
   return (
-    <div className="relative w-full h-full">
-      {variant}
-      {/* Comments sit in a box with the same flex + aspect-video math as every
-          player variant, so they always overlay the video (not letterbox bars). */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="relative w-full max-w-full max-h-full aspect-video overflow-hidden">
-          <CommentOverlay enabled={commentsEnabled} />
+    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+      {/* Banner + video as a single centered block: the banner sits directly on
+          top of the video box, and the whole group is centered vertically. */}
+      <div className="flex flex-col items-center w-full max-w-full max-h-full min-h-0">
+        {banners.length > 0 && (
+          <div className="w-full shrink-0">
+            <BannerStrip banners={banners} />
+          </div>
+        )}
+        <div className="relative w-full min-h-0 max-w-full max-h-full aspect-video">
+          <div className="absolute inset-0">{variant}</div>
+          {/* Overlay box replicates the video box geometry (same flex + aspect
+              math), so comments always sit over the video box. */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="relative w-full max-w-full max-h-full aspect-video overflow-hidden">
+              <CommentOverlay enabled={commentsEnabled} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
