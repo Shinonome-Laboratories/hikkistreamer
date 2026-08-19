@@ -89,6 +89,12 @@ export default function App() {
   // Mobile-only: chat panel height (% of viewport) and full-screen chat mode.
   const [chatHeightPct, setChatHeightPct] = useState<number>(readChatHeight);
   const [chatOnly, setChatOnly] = useState<boolean>(readChatOnly);
+  // True when the viewport is below the lg (64rem) breakpoint. Gates the
+  // chat-only player teardown so a persisted chatOnly preference never
+  // destroys the player on desktop.
+  const [isMobile, setIsMobile] = useState<boolean>(
+    () => window.matchMedia("(max-width: 63.99rem)").matches,
+  );
 
   const toggleComments = useCallback(() => {
     setCommentsEnabled((prev) => {
@@ -189,6 +195,20 @@ export default function App() {
     };
   }, [chatMaxPct]);
 
+  // Track the mobile breakpoint (< lg) so chat-only mode can fully unmount the
+  // stream player only on small screens. setState runs inside the matchMedia
+  // change callback, never synchronously in the effect body.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 63.99rem)");
+    const onChange = (event: MediaQueryListEvent) => {
+      setIsMobile(event.matches);
+    };
+    mq.addEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+    };
+  }, []);
+
   // The active Twitch channel, or null when a Twitch stream isn't playing.
   const twitchChannel =
     activeItem?.source === "twitch"
@@ -281,12 +301,18 @@ export default function App() {
       >
         {footerPosition === "top" && footer}
         <div className="flex-1 min-h-0">
-          <StreamPlayer
-            activeItem={activeItem}
-            canControl={!!(user?.is_admin || user?.is_moderator)}
-            commentsEnabled={commentsEnabled}
-            banners={banners}
-          />
+          {/* Unmount (destroy) the player entirely in mobile chat-only mode:
+              HLS/WHEP/Plyr and the YouTube/Twitch embeds tear down in their
+              effect cleanups, stopping downloads and audio. It is re-created
+              fresh when chat-only is turned back off. */}
+          {!(isMobile && chatOnly) && (
+            <StreamPlayer
+              activeItem={activeItem}
+              canControl={!!(user?.is_admin || user?.is_moderator)}
+              commentsEnabled={commentsEnabled}
+              banners={banners}
+            />
+          )}
         </div>
         {footerPosition === "bottom" && footer}
       </div>
