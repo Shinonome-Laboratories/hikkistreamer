@@ -199,8 +199,18 @@ export function ChatInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="border-t border-border pb-[env(safe-area-inset-bottom)]"
+      className="relative border-t border-border pb-[env(safe-area-inset-bottom)]"
     >
+
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        value=""
+        onChange={() => {}}
+        className="pointer-events-none absolute -left-[9999px] top-0 h-0 w-0 border-0 p-0 opacity-0"
+      />
       {uploadError && (
         <div className="px-2 pt-2">
           <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1.5">
@@ -331,6 +341,12 @@ export function ChatInput({
             maxLength={500}
             className="h-8 text-sm bg-secondary/50"
             autoComplete="off"
+            name="chat_message_field"
+            enterKeyHint="send"
+            aria-autocomplete="none"
+            data-lpignore="true"
+            data-form-type="other"
+            data-1p-ignore="true"
           />
         </div>
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
