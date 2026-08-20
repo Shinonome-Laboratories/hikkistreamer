@@ -7,6 +7,7 @@ import { LoginModal } from "@/components/LoginModal";
 import { CustomizeModal } from "@/components/CustomizeModal";
 import { UserListModal } from "@/components/UserListModal";
 import { AdminSettingsModal } from "@/components/AdminSettingsModal";
+import { LogoutConfirmModal } from "@/components/LogoutConfirmModal";
 import { TIMESTAMPS_KEY, readTimestampsEnabled } from "@/lib/utils";
 
 export default function ChatPage() {
@@ -40,6 +41,7 @@ export default function ChatPage() {
   const [userListOpen, setUserListOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [timestampsEnabled, setTimestampsEnabled] = useState<boolean>(readTimestampsEnabled);
 
   // Persist the show-timestamps preference (localStorage; default off).
@@ -69,7 +71,7 @@ export default function ChatPage() {
           userCount={userCount}
           onOpenUserList={handleOpenUserList}
           onOpenCustomize={() => setCustomizeOpen(true)}
-          onLogout={logout}
+          onLogout={() => setLogoutOpen(true)}
         />
         <ChatMessages
           messages={messages}
@@ -100,6 +102,12 @@ export default function ChatPage() {
         onRegister={registerUser}
         onLogin={loginUser}
         onGuest={guestLogin}
+      />
+
+      <LogoutConfirmModal
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        onConfirm={logout}
       />
 
       {user && (
