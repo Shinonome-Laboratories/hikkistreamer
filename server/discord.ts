@@ -3,7 +3,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import type { Server } from "socket.io";
+import type { Message } from "discord.js";
 import { createMessage } from "./chat.js";
+import { getCustomEmojis, importDiscordEmoji } from "./emojis.js";
+import {
+  clampBridgedContent,
+  collectDiscordEmotes,
+  formatDiscordContent,
+} from "./discord-format.js";
+import type { MentionLookup } from "./discord-format.js";
 import db from "./db.js";
 import type { AppConfig } from "./config.js";
 import type {
@@ -27,6 +35,8 @@ const DISCORD_BLURPLE = "#5865F2";
 const BRIDGE_MAX_PER_SECOND = 15;
 /** Max queued outbound webhook sends before we start dropping messages. */
 const MAX_QUEUE = 200;
+/** Max custom emotes we import (and therefore rewrite) per bridged message. */
+const MAX_EMOTES_PER_MESSAGE = 8;
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -56,6 +66,52 @@ export interface DiscordBridge {
 }
 
 const NOOP_BRIDGE: DiscordBridge = { sendToDiscord() {} };
+
+/** Resolve Discord user/role/channel mentions using the message's own caches. */
+function mentionsOf(message: Message): MentionLookup {
+  return {
+    user: (id) => {
+      const user = message.mentions.users.get(id);
+      return user ? user.globalName || user.username : null;
+    },
+    role: (id) => message.mentions.roles.get(id)?.name ?? null,
+    channel: (id) => {
+      const channel = message.mentions.channels.get(id);
+      // DM/thread channels have no plain `name`; fall back to "channel".
+      return channel && "name" in channel ? (channel.name ?? null) : null;
+    },
+  };
+}
+
+/**
+ * Translate a Discord message body into chat-friendly text: Discord emotes are
+ * imported as local custom emojis and rewritten to `:name:`, and user/role/
+ * channel mentions are replaced with readable names. Returns the rewritten
+ * content plus whether any emote was newly imported (so clients can be told to
+ * refresh their emoji list).
+ */
+async function translateDiscordContent(
+  message: Message
+): Promise<{ content: string; importedEmotes: boolean }> {
+  const raw = message.content ?? "";
+  const emotes = collectDiscordEmotes(raw).slice(0, MAX_EMOTES_PER_MESSAGE);
+
+  const emoteNames = new Map<string, string | null>();
+  let importedEmotes = false;
+  if (emotes.length > 0) {
+    const imported = await Promise.all(
+      emotes.map((emote) => importDiscordEmoji(emote.id, emote.name, emote.animated))
+    );
+    emotes.forEach((emote, i) => {
+      const result = imported[i];
+      if (result) importedEmotes = importedEmotes || result.created;
+      emoteNames.set(emote.id, result?.name ?? null);
+    });
+  }
+
+  const content = formatDiscordContent(raw, emoteNames, mentionsOf(message));
+  return { content: clampBridgedContent(content), importedEmotes };
+}
 
 /** Create the hidden guest user that owns persisted Discord-bridged messages. */
 function ensureBridgeUser(): void {
@@ -206,8 +262,16 @@ async function setupGateway(
     if (forwardedInWindow >= BRIDGE_MAX_PER_SECOND) return;
     forwardedInWindow += 1;
 
-    let content = (message.content ?? "").trim();
-    if (content.length > 500) content = content.slice(0, 500);
+    let content = "";
+    // Discord-only markup (`<:emote:id>`, `<@id>`, `<#id>`, …) means nothing to
+    // the chat renderer, so translate it before anything else sees it.
+    const translated = await translateDiscordContent(message);
+    content = translated.content;
+    if (translated.importedEmotes) {
+      // Tell connected clients about the newly imported emotes before the
+      // message that uses them is broadcast.
+      io.emit("emojis:list", getCustomEmojis());
+    }
 
     let mediaUrl: string | null = null;
     let mediaType: MediaType | null = null;

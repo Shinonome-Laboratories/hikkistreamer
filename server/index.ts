@@ -53,20 +53,24 @@ import {
 } from "./player.js";
 import { initTwitchBridge } from "./twitch.js";
 import { initDiscordBridge, BRIDGE_USER_ID } from "./discord.js";
+import {
+  deleteCustomEmoji,
+  emojisDir,
+  getCustomEmojis,
+  registerCustomEmoji,
+} from "./emojis.js";
 import { getConfig } from "./config.js";
 import db from "./db.js";
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
   User,
-  CustomEmoji,
   Banner,
   MediaType,
 } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const avatarsDir = path.join(__dirname, "..", "data", "avatars");
-const emojisDir = path.join(__dirname, "..", "data", "emojis");
 const bannersDir = path.join(__dirname, "..", "data", "banners");
 const uploadsDir = path.join(__dirname, "..", "data", "uploads");
 fs.mkdirSync(avatarsDir, { recursive: true });
@@ -164,10 +168,6 @@ function syncTitleFromActiveItem(): void {
     setStreamTitle(next);
     io.emit("stream:title", next);
   }
-}
-
-function getCustomEmojis(): CustomEmoji[] {
-  return db.prepare("SELECT name, url FROM custom_emojis ORDER BY created_at ASC").all() as CustomEmoji[];
 }
 
 function getBanners(): Banner[] {
@@ -350,7 +350,7 @@ app.post("/api/admin/emoji", (req, res) => {
   const filename = `${name}.${ext}`;
   fs.writeFileSync(path.join(emojisDir, filename), buffer);
   const url = `/emojis/${filename}`;
-  db.prepare("INSERT OR REPLACE INTO custom_emojis (name, url) VALUES (?, ?)").run(name, url);
+  registerCustomEmoji(name, url);
   const emojis = getCustomEmojis();
   io.emit("emojis:list", emojis);
   res.json({ name, url });
@@ -366,12 +366,8 @@ app.delete("/api/admin/emoji/:name", (req, res) => {
   if (!name || !/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
     res.status(400).json({ error: "Invalid emoji name" }); return;
   }
-  db.prepare("DELETE FROM custom_emojis WHERE name = ?").run(name);
-  // Remove file
-  for (const e of ["jpg", "png", "gif", "webp", "avif"]) {
-    const p = path.join(emojisDir, `${name}.${e}`);
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  }
+  // Removes the row, any bridged-emoji mapping for it, and the file on disk.
+  deleteCustomEmoji(name);
   const emojis = getCustomEmojis();
   io.emit("emojis:list", emojis);
   res.json({ ok: true });

@@ -66,6 +66,16 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS discord_emojis (
+    discord_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    animated INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_discord_emojis_name ON discord_emojis(name);
+
   CREATE TABLE IF NOT EXISTS banners (
     id TEXT PRIMARY KEY,
     url TEXT NOT NULL,
