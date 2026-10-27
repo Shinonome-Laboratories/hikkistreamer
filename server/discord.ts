@@ -86,8 +86,10 @@ const NOOP_BRIDGE: DiscordBridge = { sendToDiscord() {} };
  * A Discord message, or the snapshot of the original message carried by a
  * forward. Both expose the pieces the bridge needs (content, embeds, mentions,
  * attachments).
+ *
+ * Exported because it appears in the signatures of the exported bridge helpers.
  */
-type MessageLike = Message | MessageSnapshot;
+export type MessageLike = Message | MessageSnapshot;
 
 /**
  * The snapshot of the original message carried by a forward, or null when
@@ -106,7 +108,10 @@ function mentionsOf(source: MessageLike): MentionLookup {
   return {
     user: (id) => {
       const user = mentions?.users.get(id);
-      return user ? user.globalName || user.username : null;
+      if (!user) return null;
+      // Discord renders a mention with the member's guild nickname when they
+      // have one, so prefer that over their global display name.
+      return mentions?.members?.get(id)?.displayName || user.displayName;
     },
     role: (id) => mentions?.roles.get(id)?.name ?? null,
     channel: (id) => {
@@ -264,11 +269,25 @@ async function resolveAvatarUrl(message: Message): Promise<string | null> {
   return author.displayAvatarURL({ size: DISCORD_AVATAR_SIZE });
 }
 
+/**
+ * Name a Discord user posts under, as the bridged guild shows it: their guild
+ * nickname when they have one, otherwise their global display name, and finally
+ * their username.
+ *
+ * `member` is only populated for authors who are in the guild, so webhook posts
+ * and forwards from elsewhere fall back to the user-level name. `||` (not `??`)
+ * is deliberate, so an empty nickname can never blank out a name.
+ */
+export function guildDisplayName(source: MessageLike): string {
+  return source.member?.displayName || source.author?.displayName || "Discord";
+}
+
 /** What an inbound Discord message becomes once translated for hikkichat. */
 export interface BridgedDiscordMessage {
   content: string;
   mediaUrl: string | null;
   mediaType: MediaType | null;
+  /** The author's guild display name (nickname when set), not their global one. */
   displayName: string;
   avatarUrl: string | null;
   /** True when at least one Discord emote was imported as a custom emoji. */
@@ -297,8 +316,7 @@ export async function bridgeInboundMessage(
     // The chat line is attributed to whoever forwarded the message into the
     // bridged channel, so name the original author to keep that context. Some
     // clients can add their own note next to a forward; keep it in front.
-    const originalAuthor =
-      snapshot.author?.globalName || snapshot.author?.username || "Discord";
+    const originalAuthor = guildDisplayName(snapshot);
     const note = await translateBody(message.content ?? "", mentionsOf(message));
     importedEmotes = importedEmotes || note.importedEmotes;
     content = [
@@ -331,7 +349,7 @@ export async function bridgeInboundMessage(
     content,
     mediaUrl,
     mediaType,
-    displayName: message.author?.globalName || message.author?.username || "Discord",
+    displayName: guildDisplayName(message),
     avatarUrl: await resolveAvatarUrl(message),
     importedEmotes,
   };
