@@ -13,6 +13,7 @@ import {
   formatDiscordEmbeds,
 } from "./discord-format.js";
 import type { MentionLookup } from "./discord-format.js";
+import { nameColorFor } from "./name-color.js";
 import db from "./db.js";
 import type { AppConfig } from "./config.js";
 import type {
@@ -30,7 +31,7 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 export const BRIDGE_USER_ID = "discord-bridge";
 /** Display name of the synthetic user row. Not shown anywhere user-facing. */
 const BRIDGE_DISPLAY_NAME = "Discord Bridge";
-/** Discord blurple, used as both username and message color for Discord users. */
+/** Discord blurple, used as the message body color for bridged Discord posts. */
 const DISCORD_BLURPLE = "#5865F2";
 /** Cap how many Discord messages we forward to clients per second. */
 const BRIDGE_MAX_PER_SECOND = 15;
@@ -423,6 +424,10 @@ async function setupGateway(
       io.emit("emojis:list", getCustomEmojis());
     }
 
+    // Bridged users have no account to customize, so their name color is
+    // derived from the display name (stable per user, so history and live
+    // messages agree). The body stays blurple so Discord-sourced lines remain
+    // recognizable in the chat.
     const dbMessage = createMessage(
       BRIDGE_USER_ID,
       bridged.displayName,
@@ -430,7 +435,7 @@ async function setupGateway(
       bridged.mediaUrl,
       bridged.mediaType,
       bridged.avatarUrl,
-      DISCORD_BLURPLE,
+      nameColorFor(bridged.displayName),
       DISCORD_BLURPLE
     );
     if (dbMessage) {
