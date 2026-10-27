@@ -53,6 +53,7 @@ import {
 } from "./player.js";
 import { initTwitchBridge } from "./twitch.js";
 import { initDiscordBridge, BRIDGE_USER_ID } from "./discord.js";
+import { ensureSystemUser, postSystemMessage, SYSTEM_USER_ID } from "./system.js";
 import {
   deleteCustomEmoji,
   emojisDir,
@@ -297,8 +298,11 @@ app.post("/api/admin/title", (req, res) => {
     res.status(400).json({ error: "Invalid title" }); return;
   }
   const clean = title.trim().slice(0, 100);
+  const previous = getStreamTitle();
   setStreamTitle(clean);
   io.emit("stream:title", clean);
+  // Only announce an actual change, so re-saving the same title stays quiet.
+  if (previous !== clean) announceSystem(`Stream title: ${clean}`);
   res.json({ title: clean });
 });
 
@@ -501,6 +505,18 @@ const twitchBridge = initTwitchBridge(io);
 
 // Bridge chat with a configured Discord channel (optional, config-driven).
 const discordBridge = initDiscordBridge(io, getConfig());
+
+// Ensure the synthetic "system" user exists so announcements can be persisted.
+ensureSystemUser();
+
+/**
+ * Post a server announcement to chat and mirror it to Discord like any other
+ * message. Used for manual stream changes (switching items, editing the title).
+ */
+function announceSystem(content: string): void {
+  const message = postSystemMessage(io, content);
+  if (message) discordBridge.sendToDiscord(message);
+}
 
 /**
  * Remove an item from the playlist. If it was the active item, advance to the
@@ -712,6 +728,8 @@ io.on("connection", (socket) => {
     if (!targetUser || targetUser.is_admin || targetUser.is_moderator) return;
     // The synthetic Discord bridge user is not a real person; never ban it.
     if (targetUser.id === BRIDGE_USER_ID) return;
+    // Neither is the synthetic system user.
+    if (targetUser.id === SYSTEM_USER_ID) return;
 
     banUser(data.userId);
     deleteUserMessages(data.userId);
@@ -769,6 +787,7 @@ io.on("connection", (socket) => {
 
   socket.on("playlist:switch", (data) => {
     if (!assertCanManagePlaylist()) return;
+    const previousActiveId = getActiveItem()?.id ?? null;
     const result = switchPlaylistItem(data.id);
     if ("error" in result) {
       socket.emit("playlist:error", { message: result.error });
@@ -781,6 +800,11 @@ io.on("connection", (socket) => {
     syncTitleFromActiveItem();
     // Keep the Twitch chat bridge following whatever channel is now active.
     twitchBridge.syncTwitchBridge();
+    // Announce the manual switch in chat (and mirror it to Discord), but only
+    // when the active item actually changed.
+    if (previousActiveId !== result.id) {
+      announceSystem(`Now playing: ${getStreamTitle()}`);
+    }
   });
 
   socket.on("playlist:reorder", (data) => {

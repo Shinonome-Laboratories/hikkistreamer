@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import type { Server } from "socket.io";
 import type { Message, MessageSnapshot } from "discord.js";
 import { createMessage } from "./chat.js";
+import { SYSTEM_USER_ID } from "./system.js";
 import { getCustomEmojis, importDiscordEmoji } from "./emojis.js";
 import {
   clampBridgedContent,
@@ -33,6 +34,8 @@ export const BRIDGE_USER_ID = "discord-bridge";
 const BRIDGE_DISPLAY_NAME = "Discord Bridge";
 /** Discord blurple, used as the message body color for bridged Discord posts. */
 const DISCORD_BLURPLE = "#5865F2";
+/** System gray, used as the accent color of the system announcement embed. */
+const SYSTEM_EMBED_COLOR = 0x9ca3af;
 /** Cap how many Discord messages we forward to clients per second. */
 const BRIDGE_MAX_PER_SECOND = 15;
 /** Max queued outbound webhook sends before we start dropping messages. */
@@ -312,19 +315,39 @@ function toAbsoluteUrl(publicUrl: string, url: string): string | null {
   return `${publicUrl.replace(/\/+$/, "")}${url}`;
 }
 
+/**
+ * Build the embed card used for server-generated (system) announcements.
+ *
+ * Discord embed footers are plain text and cannot hold a clickable link, so the
+ * site is linked twice: the embed `url` makes the title clickable, and the
+ * description carries a visible markdown link.
+ */
+function systemEmbed(config: AppConfig, message: ChatMessage): Record<string, unknown> {
+  return {
+    title: message.content,
+    url: config.publicUrl,
+    description: `[Watch on hikkistream](${config.publicUrl})`,
+    color: SYSTEM_EMBED_COLOR,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 /** POST a single hikkichat message to the channel webhook, appearing as its author. */
 async function postToWebhook(config: AppConfig, message: ChatMessage): Promise<void> {
   const webhookUrl = config.discord.webhookUrl;
   if (!webhookUrl) return;
 
   const form = new FormData();
-  const payload: Record<string, unknown> = {
-    content: message.content || "",
-    username: message.username,
-  };
-  if (message.avatar_url) {
-    const avatarUrl = toAbsoluteUrl(config.publicUrl, message.avatar_url);
-    if (avatarUrl) payload.avatar_url = avatarUrl;
+  const payload: Record<string, unknown> = { username: message.username };
+  if (message.user_id === SYSTEM_USER_ID) {
+    // Server announcements get a rich embed card instead of a plain line.
+    payload.embeds = [systemEmbed(config, message)];
+  } else {
+    payload.content = message.content || "";
+    if (message.avatar_url) {
+      const avatarUrl = toAbsoluteUrl(config.publicUrl, message.avatar_url);
+      if (avatarUrl) payload.avatar_url = avatarUrl;
+    }
   }
   form.append("payload_json", JSON.stringify(payload));
 
