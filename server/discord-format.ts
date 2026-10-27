@@ -69,6 +69,41 @@ export function formatDiscordContent(
   );
 }
 
+/** The parts of a Discord embed we can say something about in plain chat text. */
+export interface BridgedEmbed {
+  title?: string | null;
+  description?: string | null;
+  url?: string | null;
+  author?: { name?: string | null } | null;
+  fields?: readonly { name: string; value: string }[] | null;
+}
+
+/**
+ * Flatten Discord embeds into plain text.
+ *
+ * Bot and webhook messages (feeds, integrations, announcements) often carry no
+ * `content` at all and put everything in embeds, which the chat renderer can't
+ * display — without this they would bridge as an empty message and be dropped.
+ */
+export function formatDiscordEmbeds(embeds: readonly BridgedEmbed[]): string {
+  const parts: string[] = [];
+  for (const embed of embeds) {
+    const lines: string[] = [];
+    const heading = embed.author?.name || embed.title;
+    if (heading) lines.push(heading);
+    if (embed.description) lines.push(embed.description);
+    for (const field of embed.fields ?? []) {
+      if (!field.name && !field.value) continue;
+      lines.push(field.name ? `${field.name}: ${field.value}` : field.value);
+    }
+    // Link-only embeds (e.g. a bare image or article preview) still carry a URL.
+    if (embed.url) lines.push(embed.url);
+    const text = lines.join("\n").trim();
+    if (text) parts.push(text);
+  }
+  return parts.join("\n");
+}
+
 /** Max length of a bridged message; Discord allows far more than chat displays. */
 export const BRIDGED_CONTENT_LIMIT = 500;
 

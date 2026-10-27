@@ -3,13 +3,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import type { Server } from "socket.io";
-import type { Message } from "discord.js";
+import type { Message, MessageSnapshot } from "discord.js";
 import { createMessage } from "./chat.js";
 import { getCustomEmojis, importDiscordEmoji } from "./emojis.js";
 import {
   clampBridgedContent,
   collectDiscordEmotes,
   formatDiscordContent,
+  formatDiscordEmbeds,
 } from "./discord-format.js";
 import type { MentionLookup } from "./discord-format.js";
 import db from "./db.js";
@@ -37,6 +38,11 @@ const BRIDGE_MAX_PER_SECOND = 15;
 const MAX_QUEUE = 200;
 /** Max custom emotes we import (and therefore rewrite) per bridged message. */
 const MAX_EMOTES_PER_MESSAGE = 8;
+/**
+ * `MessageReferenceType.Forward`. Spelled out as a literal because discord.js
+ * is only imported lazily in `setupGateway` (the bridge may be disabled).
+ */
+const MESSAGE_REFERENCE_TYPE_FORWARD = 1;
 
 const EXT_BY_MIME: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -67,33 +73,58 @@ export interface DiscordBridge {
 
 const NOOP_BRIDGE: DiscordBridge = { sendToDiscord() {} };
 
-/** Resolve Discord user/role/channel mentions using the message's own caches. */
-function mentionsOf(message: Message): MentionLookup {
+/**
+ * A Discord message, or the snapshot of the original message carried by a
+ * forward. Both expose the pieces the bridge needs (content, embeds, mentions,
+ * attachments).
+ */
+type MessageLike = Message | MessageSnapshot;
+
+/**
+ * The snapshot of the original message carried by a forward, or null when
+ * `message` isn't a forward. A forwarded message has no content/attachments of
+ * its own: those live in the snapshot of the message that was forwarded.
+ */
+function forwardSnapshot(message: Message): MessageSnapshot | null {
+  if (message.reference?.type !== MESSAGE_REFERENCE_TYPE_FORWARD) return null;
+  return message.messageSnapshots?.first() ?? null;
+}
+
+/** Resolve Discord user/role/channel mentions using the source's own caches. */
+function mentionsOf(source: MessageLike): MentionLookup {
+  // Snapshots (and partial messages) may carry no mention data at all.
+  const mentions = source.mentions;
   return {
     user: (id) => {
-      const user = message.mentions.users.get(id);
+      const user = mentions?.users.get(id);
       return user ? user.globalName || user.username : null;
     },
-    role: (id) => message.mentions.roles.get(id)?.name ?? null,
+    role: (id) => mentions?.roles.get(id)?.name ?? null,
     channel: (id) => {
-      const channel = message.mentions.channels.get(id);
+      const channel = mentions?.channels.get(id);
       // DM/thread channels have no plain `name`; fall back to "channel".
       return channel && "name" in channel ? (channel.name ?? null) : null;
     },
   };
 }
 
+/** Flatten a source's embeds to plain text (empty when it has none). */
+function embedTextOf(source: MessageLike): string {
+  return formatDiscordEmbeds(source.embeds ?? []);
+}
+
 /**
- * Translate a Discord message body into chat-friendly text: Discord emotes are
+ * Translate Discord message text into chat-friendly text: Discord emotes are
  * imported as local custom emojis and rewritten to `:name:`, and user/role/
- * channel mentions are replaced with readable names. Returns the rewritten
- * content plus whether any emote was newly imported (so clients can be told to
- * refresh their emoji list).
+ * channel mentions are replaced with readable names. Returns the rewritten text
+ * plus whether any emote was newly imported (so clients can be told to refresh
+ * their emoji list). The caller clamps the final text, since it may still prefix
+ * or join several bodies.
  */
-async function translateDiscordContent(
-  message: Message
+async function translateBody(
+  raw: string,
+  mentions: MentionLookup
 ): Promise<{ content: string; importedEmotes: boolean }> {
-  const raw = message.content ?? "";
   const emotes = collectDiscordEmotes(raw).slice(0, MAX_EMOTES_PER_MESSAGE);
 
   const emoteNames = new Map<string, string | null>();
@@ -109,8 +140,21 @@ async function translateDiscordContent(
     });
   }
 
-  const content = formatDiscordContent(raw, emoteNames, mentionsOf(message));
-  return { content: clampBridgedContent(content), importedEmotes };
+  const content = formatDiscordContent(raw, emoteNames, mentions);
+  return { content, importedEmotes };
+}
+
+/**
+ * Translate a Discord message's whole body: its text plus any embeds (the only
+ * body many bot and webhook messages have) flattened to plain text.
+ */
+async function translateDiscordContent(
+  source: MessageLike
+): Promise<{ content: string; importedEmotes: boolean }> {
+  const raw = [source.content ?? "", embedTextOf(source)]
+    .filter((part) => part.trim().length > 0)
+    .join("\n");
+  return translateBody(raw, mentionsOf(source));
 }
 
 /** Create the hidden guest user that owns persisted Discord-bridged messages. */
@@ -161,6 +205,103 @@ async function downloadAttachment(
     console.error("[discord] failed to download attachment:", err);
     return null;
   }
+}
+
+/** What an inbound Discord message becomes once translated for hikkichat. */
+export interface BridgedDiscordMessage {
+  content: string;
+  mediaUrl: string | null;
+  mediaType: MediaType | null;
+  displayName: string;
+  avatarUrl: string | null;
+  /** True when at least one Discord emote was imported as a custom emoji. */
+  importedEmotes: boolean;
+}
+
+/**
+ * Translate an inbound Discord message into the pieces of a hikkichat message.
+ *
+ * Handles forwards (whose body lives in a snapshot rather than on the message
+ * itself) and embed-only messages (typical for bots and webhooks). Returns null
+ * when there is nothing worth relaying.
+ */
+export async function bridgeInboundMessage(
+  message: Message
+): Promise<BridgedDiscordMessage | null> {
+  // A forward carries no content of its own: the original message (text,
+  // embeds, mentions, attachments) lives in its snapshot.
+  const snapshot = forwardSnapshot(message);
+  const source: MessageLike = snapshot ?? message;
+
+  const body = await translateDiscordContent(source);
+  let importedEmotes = body.importedEmotes;
+  let content = body.content;
+  if (snapshot) {
+    // The chat line is attributed to whoever forwarded the message into the
+    // bridged channel, so name the original author to keep that context. Some
+    // clients can add their own note next to a forward; keep it in front.
+    const originalAuthor =
+      snapshot.author?.globalName || snapshot.author?.username || "Discord";
+    const note = await translateBody(message.content ?? "", mentionsOf(message));
+    importedEmotes = importedEmotes || note.importedEmotes;
+    content = [
+      note.content,
+      content ? `[Forwarded from ${originalAuthor}] ${content}` : "",
+    ]
+      .filter((part) => part.length > 0)
+      .join("\n");
+  }
+  content = clampBridgedContent(content);
+
+  let mediaUrl: string | null = null;
+  let mediaType: MediaType | null = null;
+  const attachment = source.attachments.first();
+  if (attachment) {
+    const downloaded = await downloadAttachment(
+      attachment.url,
+      attachment.contentType ?? null,
+      attachment.name ?? null
+    );
+    if (downloaded) {
+      mediaUrl = downloaded.url;
+      mediaType = downloaded.mediaType;
+    }
+  }
+
+  if (!content && !mediaUrl) return null;
+
+  return {
+    content,
+    mediaUrl,
+    mediaType,
+    displayName: message.author.globalName || message.author.username || "Discord",
+    avatarUrl: message.author.displayAvatarURL({ size: 64 }),
+    importedEmotes,
+  };
+}
+
+/** Snowflake of the webhook a Discord webhook URL points at, or null if unparseable. */
+export function webhookIdFromUrl(webhookUrl: string): string | null {
+  return /\/webhooks\/(\d{5,20})/.exec(webhookUrl)?.[1] ?? null;
+}
+
+/**
+ * Whether an inbound channel message should be relayed into hikkichat.
+ *
+ * Loop prevention: messages posted through our own webhook (hikkichat → Discord)
+ * echo back through the gateway and must never be bridged again, and the bridge
+ * bot's own posts are ignored too. Everything else is relayed, including
+ * forwards, bot posts and other webhooks — those used to be dropped wholesale.
+ * When the webhook id is unknown (unparseable URL) all webhook messages are
+ * dropped rather than risk echoing our own.
+ */
+export function shouldRelayInbound(
+  message: Message,
+  ownWebhookId: string | null,
+  selfUserId: string | null
+): boolean {
+  if (message.webhookId) return ownWebhookId !== null && message.webhookId !== ownWebhookId;
+  return message.author.id !== selfUserId;
 }
 
 /** Turn a relative app URL (e.g. /avatars/x.png) into an absolute one Discord can fetch. */
@@ -243,15 +384,23 @@ async function setupGateway(
     ],
   });
 
+  // Id of the webhook this app posts through, so its own echoes can be told
+  // apart from other webhooks posting in the same channel.
+  const ownWebhookId = webhookIdFromUrl(dc.webhookUrl);
+  if (!ownWebhookId) {
+    console.warn(
+      "[discord] could not read a webhook id from discord.webhookUrl; webhook messages will not be bridged"
+    );
+  }
+
   let lastWindowStart = 0;
   let forwardedInWindow = 0;
 
   client.on("messageCreate", async (message) => {
     if (message.channelId !== dc.channelId) return;
-    // Loop prevention: our own webhook posts echo back as webhook messages, and
-    // the bot never relays bots. Skip both.
-    if (message.webhookId) return;
-    if (message.author.bot) return;
+    // Skips only our own echoes and the bridge bot itself; forwards, bot posts
+    // and foreign webhooks are all bridged.
+    if (!shouldRelayInbound(message, ownWebhookId, client.user?.id ?? null)) return;
 
     // Simple per-second sampling so a busy channel can't flood the broadcast.
     const now = Date.now();
@@ -262,44 +411,25 @@ async function setupGateway(
     if (forwardedInWindow >= BRIDGE_MAX_PER_SECOND) return;
     forwardedInWindow += 1;
 
-    let content = "";
     // Discord-only markup (`<:emote:id>`, `<@id>`, `<#id>`, …) means nothing to
-    // the chat renderer, so translate it before anything else sees it.
-    const translated = await translateDiscordContent(message);
-    content = translated.content;
-    if (translated.importedEmotes) {
+    // the chat renderer, so translation happens here: forwards are read from
+    // their snapshot, embed-only bot/webhook posts are flattened to text.
+    const bridged = await bridgeInboundMessage(message);
+    if (!bridged) return;
+
+    if (bridged.importedEmotes) {
       // Tell connected clients about the newly imported emotes before the
       // message that uses them is broadcast.
       io.emit("emojis:list", getCustomEmojis());
     }
 
-    let mediaUrl: string | null = null;
-    let mediaType: MediaType | null = null;
-    const attachment = message.attachments.first();
-    if (attachment) {
-      const downloaded = await downloadAttachment(
-        attachment.url,
-        attachment.contentType ?? null,
-        attachment.name ?? null
-      );
-      if (downloaded) {
-        mediaUrl = downloaded.url;
-        mediaType = downloaded.mediaType;
-      }
-    }
-
-    if (!content && !mediaUrl) return;
-
-    const displayName = message.author.globalName || message.author.username || "Discord";
-    const avatarUrl = message.author.displayAvatarURL({ size: 64 });
-
     const dbMessage = createMessage(
       BRIDGE_USER_ID,
-      displayName,
-      content,
-      mediaUrl,
-      mediaType,
-      avatarUrl,
+      bridged.displayName,
+      bridged.content,
+      bridged.mediaUrl,
+      bridged.mediaType,
+      bridged.avatarUrl,
       DISCORD_BLURPLE,
       DISCORD_BLURPLE
     );
