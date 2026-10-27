@@ -60,6 +60,7 @@ import {
   getCustomEmojis,
   registerCustomEmoji,
 } from "./emojis.js";
+import { avatarsDir } from "./avatars.js";
 import { getConfig } from "./config.js";
 import db from "./db.js";
 import type {
@@ -71,10 +72,9 @@ import type {
 } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const avatarsDir = path.join(__dirname, "..", "data", "avatars");
+// `avatarsDir` is owned by avatars.ts, which also creates it (and its discord/ subdir).
 const bannersDir = path.join(__dirname, "..", "data", "banners");
 const uploadsDir = path.join(__dirname, "..", "data", "uploads");
-fs.mkdirSync(avatarsDir, { recursive: true });
 fs.mkdirSync(emojisDir, { recursive: true });
 fs.mkdirSync(bannersDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });

@@ -1,4 +1,4 @@
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { buildEmojiMap, renderContent } from "@/lib/renderContent";
 import { Button } from "@/components/ui/button";
 import { Trash2, Ban } from "lucide-react";
@@ -67,6 +67,9 @@ export function ChatMessage({
       {message.avatar_url && (
         <Avatar className="h-8 w-8 mt-0.5 shrink-0">
           <AvatarImage src={message.avatar_url} />
+          {/* Keeps a message readable when its avatar can't be loaded (e.g. a
+              Discord CDN URL whose hash is gone). */}
+          <AvatarFallback>{message.username.slice(0, 1).toUpperCase()}</AvatarFallback>
         </Avatar>
       )}
       <div className="min-w-0 flex-1">

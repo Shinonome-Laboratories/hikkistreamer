@@ -8,6 +8,11 @@ import { createMessage } from "./chat.js";
 import { SYSTEM_USER_ID } from "./system.js";
 import { getCustomEmojis, importDiscordEmoji } from "./emojis.js";
 import {
+  cacheDiscordAvatar,
+  DISCORD_AVATAR_SIZE,
+  migrateDiscordAvatarUrls,
+} from "./avatars.js";
+import {
   clampBridgedContent,
   collectDiscordEmotes,
   formatDiscordContent,
@@ -211,6 +216,54 @@ async function downloadAttachment(
   }
 }
 
+/** Avatar hashes of webhooks we have looked up (`null` = none, or lookup failed). */
+const webhookAvatarHashes = new Map<string, string | null>();
+
+/**
+ * Avatar hash a webhook message should be attributed to.
+ *
+ * Discord normally puts the webhook's avatar in the message payload, but the
+ * field is absent for some webhook messages; the webhook itself is then fetched
+ * (once per webhook id) so those messages still get a picture. Needs the bot to
+ * have Manage Webhooks in the channel — anything else falls back to the default
+ * avatar.
+ */
+async function webhookAvatarHash(message: Message): Promise<string | null> {
+  const webhookId = message.webhookId;
+  if (!webhookId) return null;
+  const known = webhookAvatarHashes.get(webhookId);
+  if (known !== undefined) return known;
+
+  let hash: string | null = null;
+  try {
+    hash = (await message.client.fetchWebhook(webhookId)).avatar ?? null;
+  } catch (err) {
+    console.warn(`[discord] could not look up webhook ${webhookId}:`, err);
+  }
+  webhookAvatarHashes.set(webhookId, hash);
+  return hash;
+}
+
+/**
+ * Resolve a message author's avatar to a locally hosted image.
+ *
+ * Discord CDN URLs embed the picture's hash, so persisting one leaves history
+ * pointing at a 404 the moment its owner changes their avatar. The image is
+ * mirrored into data/avatars (once per id + hash) and the local path is stored
+ * instead. Falls back to the CDN URL — including Discord's default avatar — when
+ * the mirror fails, so a bridged message never loses its picture outright.
+ */
+async function resolveAvatarUrl(message: Message): Promise<string | null> {
+  const author = message.author;
+  if (!author) return null;
+  const hash = author.avatar ?? (await webhookAvatarHash(message));
+  if (hash) {
+    const local = await cacheDiscordAvatar(author.id, hash);
+    if (local) return local;
+  }
+  return author.displayAvatarURL({ size: DISCORD_AVATAR_SIZE });
+}
+
 /** What an inbound Discord message becomes once translated for hikkichat. */
 export interface BridgedDiscordMessage {
   content: string;
@@ -278,8 +331,8 @@ export async function bridgeInboundMessage(
     content,
     mediaUrl,
     mediaType,
-    displayName: message.author.globalName || message.author.username || "Discord",
-    avatarUrl: message.author.displayAvatarURL({ size: 64 }),
+    displayName: message.author?.globalName || message.author?.username || "Discord",
+    avatarUrl: await resolveAvatarUrl(message),
     importedEmotes,
   };
 }
@@ -468,6 +521,15 @@ async function setupGateway(
 
   client.once("ready", () => {
     console.log(`[discord] bridge connected as ${client.user?.tag ?? "?"}`);
+    // History written before avatars were mirrored still points at Discord's CDN.
+    // Repair it now that the bot can look up an author's current picture.
+    void migrateDiscordAvatarUrls(async (userId) => {
+      try {
+        return (await client.users.fetch(userId)).avatar ?? null;
+      } catch {
+        return null;
+      }
+    }).catch((err) => console.error("[avatars] migration failed:", err));
   });
 
   try {
