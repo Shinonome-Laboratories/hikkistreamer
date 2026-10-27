@@ -327,7 +327,9 @@ export function ChatInput({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onPaste={handlePaste}
-            placeholder={disabled ? "Login to chat..." : "Type a message..."}
+            // Keep the placeholder free of login/sign-in wording: Chrome's
+            // autofill heuristics treat such text as a credential field hint.
+            placeholder="Type a message..."
             disabled={disabled}
             maxLength={500}
             className="h-8 text-sm bg-secondary/50"
